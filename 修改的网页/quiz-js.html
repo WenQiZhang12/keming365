@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线测验</title>
+    <script src="/js/quiz.js" charset="UTF-8"></script>
+</head>
+<body>
+    <div id="quizContainer"></div>
+    
+    <script>
+        // 从URL参数获取课程类型
+        function getUrlParam(name) {
+            var url = window.location.search.substring(1);
+            var params = url.split('&');
+            for (var i = 0; i < params.length; i++) {
+                var pair = params[i].split('=');
+                if (pair[0] === name) {
+                    return decodeURIComponent(pair[1]);
+                }
+            }
+            return null;
+        }
+        
+        // 获取课程类型参数
+        var courseType = getUrlParam('course');
+        
+        // 初始化测试系统
+        window.onload = function() {
+            QuizSystem.init(courseType);
+        };
+    </script>
+</body>
+</html>

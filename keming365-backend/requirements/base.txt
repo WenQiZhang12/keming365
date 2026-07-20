@@ -1,0 +1,14 @@
+Django>=5.0,<5.1
+djangorestframework>=3.15
+djangorestframework-simplejwt
+django-cors-headers
+django-redis
+channels[daphne]
+channels[redis]
+drf-spectacular
+mysqlclient
+python-dotenv
+pywin32; platform_system == "Windows"
+celery[redis]
+gunicorn
+uvicorn[standard]

@@ -1,0 +1,39 @@
+# Local archives
+keming365-backend.7z
+**/.git.local-backup/
+
+# Frontend dependencies and build output
+keming365-frontend/node_modules/
+keming365-frontend/dist/
+keming365-frontend/.vite/
+keming365-frontend/logs/
+keming365-frontend/*.local
+keming365-frontend/*.log
+
+# Backend runtime and local configuration
+keming365-backend/**/__pycache__/
+keming365-backend/**/*.py[cod]
+keming365-backend/*.egg-info/
+keming365-backend/dist/
+keming365-backend/build/
+keming365-backend/.env
+keming365-backend/.env.*
+keming365-backend/logs/
+keming365-backend/ssl/
+keming365-backend/static/
+keming365-backend/media/
+keming365-backend/**/*.mp4
+keming365-backend/**/*.avi
+keming365-backend/**/*.mov
+keming365-backend/**/*.flv
+keming365-backend/**/*.wmv
+keming365-backend/**/*.mkv
+keming365-backend/**/*.webm
+
+# Editors and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.suo

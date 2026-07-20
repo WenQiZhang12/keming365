@@ -1,0 +1,36 @@
+cd D:\ZWQProject\keming365\keming365-frontend
+npm run dev
+
+cd D:\ZWQProject\keming365\keming365-backend
+python manage.py runserver 0.0.0.0:8000 --settings=config.settings.dev
+
+
+
+
+npm.cmd run dev
+
+
+
+SQL查询命令：
+
+SELECT id, username, name, type, create_time
+FROM new365.tb_user
+WHERE username = 'wenqi';   //注册的用户名
+
+
+改成管理员
+UPDATE new365.tb_user
+SET type = 4
+WHERE username = 'wenqi';
+
+
+
+教师：type=1
+学生：type=2
+管理员：type=4
+普通/旧版用户：type=5
+
+
+教师：5499961633744b4bb69d715d2c26678c
+管理员：91e2cfb27ae44500bedfc54a371a8d1b
+临时管理员：930a06ad95ea49f3a617fd943ea4b8c0

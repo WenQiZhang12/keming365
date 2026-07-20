@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title></title>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 930px; height: 620px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; background: #fff; }
+
+.chat-container { display: flex; flex-direction: column; height: 100%; width: 930px; background: #fff; }
+
+/* 头部 */
+.chat-header {
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 10px;
+  color: #333; flex-shrink: 0;
+}
+.chat-header-icon { width: 36px; height: 36px; background: rgba(0,0,0,0.05); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+.chat-header-title { font-size: 16px; font-weight: 600; }
+.chat-header-desc { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+
+/* 消息区域 */
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* 欢迎消息 */
+.welcome-msg {
+  text-align: center; padding: 40px 20px; color: #666;
+}
+.welcome-msg .icon { font-size: 48px; margin-bottom: 12px; }
+.welcome-msg .title { font-size: 18px; color: #333; font-weight: 600; margin-bottom: 8px; }
+.welcome-msg .desc { font-size: 14px; line-height: 1.8; }
+
+/* 推荐问题 */
+.prompt-suggestions {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+  margin-top: 16px;
+}
+.prompt-chip {
+  padding: 8px 16px; background: #f0f2ff; border: 1px solid #d4d8f0;
+  border-radius: 20px; font-size: 13px; color: #4a5fa8; cursor: pointer;
+  transition: all 0.15s;
+}
+.prompt-chip:hover { background: #e4e8ff; border-color: #b0b8e0; }
+
+/* 消息气泡 */
+.msg-row { display: flex; gap: 10px; max-width: 100%; }
+.msg-row.user { flex-direction: row-reverse; }
+
+.msg-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; color: #fff;
+}
+.msg-row.ai .msg-avatar { background: linear-gradient(135deg, #667eea, #764ba2); }
+.msg-row.user .msg-avatar { background: linear-gradient(135deg, #38bdf8, #2563eb); }
+
+.msg-bubble {
+  max-width: calc(100% - 60px); padding: 12px 16px;
+  border-radius: 12px; font-size: 14px; line-height: 1.8;
+  word-wrap: break-word;
+}
+.msg-row.ai .msg-bubble { background: #f5f7fa; color: #333; border-top-left-radius: 4px; }
+.msg-row.user .msg-bubble { background: #4a7dff; color: #fff; border-top-right-radius: 4px; }
+
+.msg-bubble img { max-width: 100%; border-radius: 6px; margin: 6px 0; }
+.msg-bubble pre { background: #1e1e2e; color: #cdd6f4; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 8px 0; font-size: 13px; }
+.msg-bubble code { background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+.msg-bubble pre code { background: none; padding: 0; }
+.msg-bubble table { border-collapse: collapse; margin: 8px 0; }
+.msg-bubble td, .msg-bubble th { border: 1px solid #ddd; padding: 6px 10px; font-size: 13px; }
+.msg-bubble ul, .msg-bubble ol { padding-left: 20px; }
+.msg-bubble blockquote { border-left: 3px solid #667eea; padding-left: 12px; color: #666; margin: 8px 0; }
+
+/* VR/视频推荐卡片 */
+.recommend-cards { margin-top: 10px; }
+.recommend-label { font-size: 12px; color: #888; margin-bottom: 8px; font-weight: 600; }
+.recommend-card {
+  display: flex; align-items: center; gap: 10px; padding: 10px;
+  background: #fff; border: 1px solid #e8e8f0; border-radius: 8px;
+  margin-bottom: 6px; cursor: pointer; transition: all 0.15s;
+}
+.recommend-card:hover { border-color: #667eea; box-shadow: 0 2px 8px rgba(102,126,234,0.15); }
+.recommend-card img { width: 50px; height: 50px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.recommend-card .card-title { font-size: 13px; color: #333; font-weight: 500; }
+.recommend-card .card-type { font-size: 11px; color: #888; margin-top: 2px; }
+
+/* 知识图谱入口按钮 */
+.knowledge-btn-wrap { margin-top: 12px; }
+.knowledge-open-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px; background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; border: none; border-radius: 20px; font-size: 13px;
+  cursor: pointer; transition: opacity 0.15s; font-weight: 500;
+}
+.knowledge-open-btn:hover { opacity: 0.9; }
+
+/* 打字指示器 */
+.typing-indicator { display: flex; gap: 4px; padding: 4px 0; }
+.typing-indicator span {
+  width: 8px; height: 8px; background: #999; border-radius: 50%;
+  animation: bounce 1.2s infinite;
+}
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-6px); } }
+
+/* 输入区域 */
+.chat-input-area {
+  padding: 12px 16px; border-top: 1px solid #eee; background: #fff; flex-shrink: 0;
+}
+.chat-input-wrap {
+  display: flex; gap: 10px; align-items: flex-end;
+}
+.chat-textarea {
+  flex: 1; border: 1px solid #ddd; border-radius: 10px; padding: 10px 14px;
+  font-size: 14px; line-height: 1.6; resize: none;
+  max-height: 120px; min-height: 42px; outline: none;
+  font-family: inherit; transition: border-color 0.15s;
+}
+.chat-textarea:focus { border-color: #667eea; }
+.chat-textarea::placeholder { color: #bbb; }
+
+.chat-send-btn {
+  width: 42px; height: 42px; border: none; border-radius: 10px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+.chat-send-btn:hover { opacity: 0.9; }
+.chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.chat-send-btn svg { width: 20px; height: 20px; }
+
+/* 知识图谱悬浮层 */
+.kg-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 9999;
+  display: flex; align-items: center; justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.kg-modal {
+  background: #fff; border-radius: 12px; width: 90vw; max-width: 1200px;
+  height: 85vh; display: flex; flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3); animation: slideUp 0.25s ease;
+}
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.kg-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid #eee; flex-shrink: 0;
+}
+.kg-modal-header h3 { font-size: 16px; color: #333; margin: 0; }
+.kg-modal-close {
+  width: 32px; height: 32px; border: none; background: #f0f0f0;
+  border-radius: 50%; cursor: pointer; font-size: 18px; color: #666;
+  display: flex; align-items: center; justify-content: center;
+}
+.kg-modal-close:hover { background: #e0e0e0; }
+.kg-modal-body { flex: 1; overflow: hidden; }
+.kg-modal-body iframe { width: 100%; height: 100%; border: none; }
+</style>
+</head>
+<body>
+<div class="chat-container">
+  <div class="chat-header">
+  </div>
+
+  <div class="chat-messages" id="chatMessages">
+    <div class="welcome-msg" id="welcomeMsg">
+      <div class="icon">🎓</div>
+      <div class="title">你好，我是AI教育助手</div>
+      <div class="desc">你可以问我任何关于课程内容的问题，<br>我会为你提供解答并推荐相关学习资源。</div>
+      <div class="prompt-suggestions" id="promptSuggestions"></div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <div class="chat-input-wrap">
+      <textarea class="chat-textarea" id="chatInput" rows="1" placeholder="试着输入您想了解的问题吧。输入Shift+Enter是换行哦~"></textarea>
+      <button class="chat-send-btn" id="sendBtn" title="发送">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  var lessonId = params.get('lessonId') || '2';
+  var API_BASE = params.get('apiBase') || 'https://www.keming365.com';
+  var userId = 'user-' + Math.random().toString(36).substr(2, 8);
+
+  var chatMessages = document.getElementById('chatMessages');
+  var chatInput = document.getElementById('chatInput');
+  var sendBtn = document.getElementById('sendBtn');
+  var welcomeMsg = document.getElementById('welcomeMsg');
+  var promptSuggestions = document.getElementById('promptSuggestions');
+  var isSending = false;
+
+  // ========== 自动调整输入框高度 ==========
+  chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  // ========== 回车发送 ==========
+  chatInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+  sendBtn.addEventListener('click', handleSend);
+
+  // ========== 加载推荐问题 ==========
+  fetch(API_BASE + '/ai/chat/prompt/' + lessonId)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var prompts = Array.isArray(data) ? data : (data.data || []);
+      prompts.forEach(function(item) {
+        // 兼容API返回对象或字符串
+        var text = '';
+        if (typeof item === 'string') {
+          text = item;
+        } else if (item && typeof item === 'object') {
+          text = item.content || item.text || item.title || item.name || item.prompt || JSON.stringify(item);
+        }
+        if (!text) return;
+        var chip = document.createElement('div');
+        chip.className = 'prompt-chip';
+        chip.textContent = text;
+        chip.addEventListener('click', function() {
+          chatInput.value = text;
+          handleSend();
+        });
+        promptSuggestions.appendChild(chip);
+      });
+    })
+    .catch(function() {});
+
+  // ========== 发送消息 ==========
+  function handleSend() {
+    var query = chatInput.value.trim();
+    if (!query || isSending) return;
+
+    isSending = true;
+    sendBtn.disabled = true;
+
+    // 隐藏欢迎消息
+    if (welcomeMsg) welcomeMsg.style.display = 'none';
+
+    // 添加用户消息
+    addMessage('user', query);
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+
+    // 添加AI加载指示
+    var aiRow = addMessage('ai', '');
+    var bubble = aiRow.querySelector('.msg-bubble');
+    bubble.innerHTML = '<div class="typing-indicator"><span></span><span></span><span></span></div>';
+
+    // 并行发3个请求：chat、vr推荐、video推荐
+    var chatPromise = requestAgent('chat', query, 3);
+    var vrPromise = requestAgent('vr', query, 2);
+    var videoPromise = requestAgent('video', query, 1);
+
+    Promise.all([chatPromise, vrPromise, videoPromise])
+      .then(function(results) {
+        var chatResult = results[0];
+        var vrResult = results[1];
+        var videoResult = results[2];
+
+        // 处理聊天回复（SSE解析后已是JSON对象）
+        var chatContent = '';
+        try {
+          chatContent = chatResult.content || chatResult.answer || '';
+          if (!chatContent && typeof chatResult === 'string') chatContent = chatResult;
+          // 修复：将字面量 \n 转换为实际换行符
+          if (typeof chatContent === 'string') {
+            chatContent = chatContent.replace(/\\n/g, '\n');
+          }
+        } catch(e) {
+          chatContent = '抱歉，获取回复失败。';
+        }
+
+        // 处理VR和视频推荐
+        var recommendations = [];
+        try {
+          var vrContent = vrResult.content || vrResult;
+          if (typeof vrContent === 'string') {
+            vrContent = vrContent.replace(/\\n/g, '\n');
+            try { vrContent = JSON.parse(vrContent); } catch(e) { vrContent = {}; }
+          }
+          if (vrContent.answer && Array.isArray(vrContent.answer)) {
+            vrContent.answer.forEach(function(item) {
+              var title = item.data2 || item.title || '';
+              var link = item.data4 || item.path || '';
+              var img = item.data3 || item.img || '';
+              // 过滤掉表头行和空数据
+              if (title && title !== '图名' && title !== 'data2' && title.length > 1) {
+                recommendations.push({ title: title, path: link, img: img, type: 'VR资源' });
+              }
+            });
+          }
+        } catch(e) {}
+
+        try {
+          var videoContent = videoResult.content || videoResult;
+          if (typeof videoContent === 'string') {
+            videoContent = videoContent.replace(/\\n/g, '\n');
+            try { videoContent = JSON.parse(videoContent); } catch(e) { videoContent = {}; }
+          }
+          if (videoContent.answer && Array.isArray(videoContent.answer)) {
+            videoContent.answer.forEach(function(item) {
+              var title = item.data2 || item.title || '';
+              var link = item.data4 || item.path || '';
+              var img = item.data3 || item.img || '';
+              if (title && title !== '图名' && title !== 'data2' && title.length > 1) {
+                recommendations.push({ title: title, path: link, img: img, type: '教学视频' });
+              }
+            });
+          }
+        } catch(e) {}
+
+        // 打字机效果显示回复
+        typewriterRender(bubble, chatContent, function() {
+          // 渲染完毕后添加推荐卡片
+          if (recommendations.length > 0) {
+            var cardsHtml = '<div class="recommend-cards">';
+            cardsHtml += '<div class="recommend-label">相关推荐</div>';
+            recommendations.forEach(function(rec) {
+              var imgUrl = rec.img || '';
+              var linkUrl = rec.path || '';
+              cardsHtml += '<div class="recommend-card" data-url="' + escapeAttr(linkUrl) + '">';
+              if (imgUrl) cardsHtml += '<img src="' + escapeAttr(imgUrl) + '" alt="">';
+              cardsHtml += '<div><div class="card-title">' + escapeHtml(rec.title) + '</div><div class="card-type">' + rec.type + '</div></div>';
+              cardsHtml += '</div>';
+            });
+            cardsHtml += '</div>';
+            bubble.insertAdjacentHTML('beforeend', cardsHtml);
+
+            bubble.querySelectorAll('.recommend-card').forEach(function(card) {
+              card.addEventListener('click', function() {
+                var url = this.getAttribute('data-url');
+                if (url) window.open(url, '_blank');
+              });
+            });
+          }
+
+          // 添加"查看知识图谱"按钮
+          var kgBtnHtml = '<div class="knowledge-btn-wrap">';
+          kgBtnHtml += '<button class="knowledge-open-btn" onclick="openKnowledgeGraph()">';
+          kgBtnHtml += '🧠 查看相关知识图谱</button></div>';
+          bubble.insertAdjacentHTML('beforeend', kgBtnHtml);
+        });
+      })
+      .catch(function(err) {
+        bubble.innerHTML = '<span style="color:#e74c3c;">请求失败：' + escapeHtml(err.message || '网络错误') + '</span>';
+      })
+      .finally(function() {
+        isSending = false;
+        sendBtn.disabled = false;
+        chatInput.focus();
+      });
+  }
+
+  // ========== 打开知识图谱（悬浮iframe） ==========
+  window.openKnowledgeGraph = function() {
+    // 如果已有悬浮层先移除
+    var existing = document.getElementById('kgOverlay');
+    if (existing) existing.remove();
+
+    var kgUrl = 'knowledge-graph.html?lessonId=' + lessonId + '&apiBase=' + encodeURIComponent(API_BASE);
+
+    var overlay = document.createElement('div');
+    overlay.id = 'kgOverlay';
+    overlay.className = 'kg-overlay';
+    overlay.innerHTML = '<div class="kg-modal">' +
+      '<div class="kg-modal-header">' +
+      '<h3>\ud83e\udde0 知识图谱</h3>' +
+      '<button class="kg-modal-close" id="kgCloseBtn">&times;</button>' +
+      '</div>' +
+      '<div class="kg-modal-body">' +
+      '<iframe src="' + kgUrl + '"></iframe>' +
+      '</div></div>';
+
+    // 点击遮罩关闭
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+
+    // 关闭按钮
+    document.getElementById('kgCloseBtn').addEventListener('click', function() {
+      overlay.remove();
+    });
+  };
+
+  // ========== API请求（SSE格式解析） ==========
+  function requestAgent(name, query, type) {
+    return fetch(API_BASE + '/ai/chat/v1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query: query, user: userId, type: type, id: lessonId })
+    }).then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    }).then(function(text) {
+      // 解析SSE格式：提取data:行中的JSON
+      var dataLines = [];
+      text.split('\n').forEach(function(line) {
+        line = line.trim();
+        if (line.indexOf('data:') === 0) {
+          dataLines.push(line.substring(5));
+        }
+      });
+      if (dataLines.length === 0) {
+        if (text.indexOf('event:error') >= 0 || text.indexOf('event: erro') >= 0) {
+          throw new Error('AI服务返回错误');
+        }
+        throw new Error('未收到有效数据');
+      }
+      var jsonStr = dataLines.join('');
+      // 修复服务器双重转义问题（\\n -> \n, \\" -> \"）
+      jsonStr = jsonStr.replace(/\\\\/g, '\\');
+      try {
+        return JSON.parse(jsonStr);
+      } catch(e) {
+        // 如果还是失败，尝试只替换 content 中的转义
+        try {
+          var fixed = jsonStr.replace(/\\n/g, '\n').replace(/\\"/g, '\"');
+          return JSON.parse(fixed);
+        } catch(e2) {
+          return { type: 'final', content: dataLines.join('') };
+        }
+      }
+    });
+  }
+
+  // ========== 添加消息 ==========
+  function addMessage(role, content) {
+    var row = document.createElement('div');
+    row.className = 'msg-row ' + role;
+
+    var avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = role === 'ai' ? '🤖' : '👤';
+
+    var bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    if (content) bubble.innerHTML = renderMarkdown(content);
+
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatMessages.appendChild(row);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return row;
+  }
+
+  // ========== Markdown渲染 ==========
+  function renderMarkdown(text) {
+    if (!text) return '';
+    // 确保换行符正确处理
+    text = text.replace(/\\n/g, '\n');
+    if (window.marked) {
+      try { return marked.parse(text); } catch(e) {}
+    }
+    return text.replace(/\n/g, '<br>');
+  }
+
+  // ========== 打字机效果 ==========
+  function typewriterRender(element, text, callback) {
+    // 确保换行符正确
+    text = text.replace(/\\n/g, '\n');
+    var html = renderMarkdown(text);
+    var totalLen = html.length;
+    var speed = totalLen > 2000 ? 5 : 3;
+    var interval = totalLen > 2000 ? 15 : 25;
+    var pos = 0;
+
+    element.innerHTML = '';
+
+    function step() {
+      if (pos >= totalLen) {
+        element.innerHTML = html;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        if (callback) callback();
+        return;
+      }
+      pos += speed + Math.floor(Math.random() * 3);
+      if (pos > totalLen) pos = totalLen;
+      element.innerHTML = html.substring(0, pos);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      var jitter = interval + (Math.random() * 10 - 5);
+      requestAnimationFrame(function() { setTimeout(step, Math.max(5, jitter)); });
+    }
+    step();
+  }
+
+  function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function escapeAttr(s) { return (s || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+})();
+</script>
+</body>
+</html>

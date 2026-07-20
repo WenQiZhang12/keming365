@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线测验</title>
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #fff; }
+        #quizContainer { width: 100%; height: 100%; overflow: hidden; }
+    </style>
+    <script src="/js/quiz.js" charset="UTF-8"></script>
+</head>
+<body>
+    <div id="quizContainer"></div>
+
+    <script>
+        function getUrlParam(name) {
+            var url = window.location.search.substring(1);
+            var params = url.split('&');
+            for (var i = 0; i < params.length; i++) {
+                var pair = params[i].split('=');
+                if (pair[0] === name) return decodeURIComponent(pair[1] || '');
+            }
+            return null;
+        }
+
+        var courseType = getUrlParam('course');
+        var chapterFilter = getUrlParam('chapter') || '';
+
+        window.onload = function() {
+            QuizSystem.renderQuiz(courseType, 'quizContainer', chapterFilter);
+        };
+    </script>
+</body>
+</html>
