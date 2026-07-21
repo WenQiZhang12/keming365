@@ -21,7 +21,7 @@
       <div v-else v-for="n in news" :key="n.id" class="news-item" @click="openDetail(n.id)">
         <div class="thumb">
           <img v-if="n.coverImg" :src="getImageUrl(n.coverImg)" alt=""
-               @error="$event.target.style.display='none'">
+               @error="hideBrokenImage">
           <span v-else>📰</span>
         </div>
         <div class="info">
@@ -45,7 +45,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getNews } from '@/api'
-import { getImageUrl, stripHtml, formatDate } from '@/utils'
+import { getImageUrl, hideBrokenImage, stripHtml, formatDate } from '@/utils'
 import Pagination from '@/components/Pagination.vue'
 import type { NewsItem } from '@/types'
 

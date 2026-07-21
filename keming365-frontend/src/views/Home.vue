@@ -79,7 +79,7 @@
                  class="experiment-card" @click="openExperiment(exp.id)">
               <div class="experiment-thumb">
                 <img v-if="getImageUrl(exp.image || '')" :src="getImageUrl(exp.image || '')" loading="lazy"
-                     @error="$event.target.style.display='none'">
+                     @error="hideBrokenImage">
                 <span v-else style="font-size:36px">🔬</span>
               </div>
               <p class="experiment-title" :title="exp.title">{{ exp.title }}</p>
@@ -141,7 +141,7 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getClassifies, getClassifyExperiments, getCurricula, getFeaturedExperiments } from '@/api'
-import { getImageUrl } from '@/utils'
+import { getImageUrl, hideBrokenImage } from '@/utils'
 import type { Classify, Curriculum, Experiment } from '@/types'
 
 const router = useRouter()
@@ -167,7 +167,6 @@ const doSearch = () => {
 interface ClassifySection {
   classify: Classify
   experiments: Experiment[]
-  icon: string
 }
 const classifyData = ref<ClassifySection[]>([])
 const loading = ref(true)

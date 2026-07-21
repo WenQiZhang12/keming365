@@ -56,13 +56,14 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
+import type { ExperimentReport, PaginatedResponse } from '@/types'
 import { useUserStore } from '@/stores/user'
 import Pagination from '@/components/Pagination.vue'
 
 const router = useRouter()
 const userStore = useUserStore()
 
-const reports = ref<any[]>([])
+const reports = ref<ExperimentReport[]>([])
 const loading = ref(true)
 const search = ref('')
 const filterStatus = ref('all')
@@ -76,7 +77,7 @@ const stats = computed(() => {
   const pending = reports.value.filter(r => r.status === 0).length
   const scored = reports.value.filter(r => r.reportScore != null && r.reportScore !== '')
   const avgScore = scored.length
-    ? Math.round(scored.reduce((s, r) => s + parseFloat(r.reportScore || 0), 0) / scored.length)
+    ? Math.round(scored.reduce((s, r) => s + Number(r.reportScore || 0), 0) / scored.length)
     : 0
   return { total, passed, pending, avgScore }
 })
@@ -95,16 +96,16 @@ const filteredReports = computed(() => {
 
 const statusClass = (s: number) => s === 1 ? 'pass' : s === 0 ? 'pending' : 'reject'
 
-const goReport = (r: any) => {
+const goReport = (r: ExperimentReport) => {
   router.push({ path: '/review-report', query: { id: String(r.id) } })
 }
 
 const loadReports = async () => {
   loading.value = true
   try {
-    const d = await api.get('/scores/my-reports/', { params: { page: page.value } })
-    reports.value = d.results || []
-    totalCount.value = d.count || 0
+    const { data } = await api.get<PaginatedResponse<ExperimentReport>>('/scores/my-reports/', { params: { page: page.value } })
+    reports.value = data.results || []
+    totalCount.value = data.count || 0
   } catch (e) { /* ignore */ }
   finally { loading.value = false }
 }

@@ -32,8 +32,18 @@
                 </button>
 
                 <div class="tree-modules">
-                  <section v-for="mod in itemModules" :key="mod.name" class="tree-module open">
-                    <button class="tree-module-title" :class="{ strong: sectionHasContent(section) }" type="button" @click="resetToIntro">
+                  <section
+                    v-for="mod in itemModules"
+                    :key="mod.name"
+                    :class="['tree-module', { open: isModuleOpen(ci, si, mod.name) }]"
+                  >
+                    <button
+                      class="tree-module-title"
+                      :class="{ strong: sectionHasContent(section) }"
+                      type="button"
+                      :aria-expanded="isModuleOpen(ci, si, mod.name)"
+                      @click="toggleModule(ci, si, mod.name)"
+                    >
                       <span class="tree-text">{{ mod.name }}</span>
                     </button>
                     <div class="tree-items">
@@ -145,6 +155,7 @@ const courseData = ref<any>(null)
 const showIntro = ref(true)
 const openChapters = ref(new Set<number>())
 const openSections = ref(new Set<string>())
+const openModules = ref(new Set<string>())
 const selectedChapter = ref<number | null>(null)
 const selectedSection = ref<string | null>(null)
 const activeResource = ref<{ ci: number; si: number; type: string } | null>(null)
@@ -220,6 +231,7 @@ function sectionHasContent(section: any): boolean {
 async function loadCourseData() {
   openChapters.value = new Set<number>()
   openSections.value = new Set<string>()
+  openModules.value = new Set<string>()
   selectedChapter.value = null
   selectedSection.value = null
   showIntro.value = true
@@ -307,8 +319,10 @@ function normalizeLegacyCourseData(courseName: string, data: any) {
 
 function toIndex(value: string | number) { return typeof value === 'number' ? value : Number(value) }
 function sectionKey(ci: string | number, si: string | number) { return `${toIndex(ci)}-${toIndex(si)}` }
+function moduleKey(ci: string | number, si: string | number, moduleName: string) { return `${sectionKey(ci, si)}-${moduleName}` }
 function isChapterOpen(ci: string | number) { return openChapters.value.has(toIndex(ci)) }
 function isSectionOpen(ci: string | number, si: string | number) { return openSections.value.has(sectionKey(ci, si)) }
+function isModuleOpen(ci: string | number, si: string | number, moduleName: string) { return openModules.value.has(moduleKey(ci, si, moduleName)) }
 function isChapterSelected(ci: string | number) { return selectedChapter.value === toIndex(ci) }
 function isSectionSelected(ci: string | number, si: string | number) { return selectedSection.value === sectionKey(ci, si) }
 function isActiveResource(ci: string | number, si: string | number, type: string) { return activeResource.value?.ci === toIndex(ci) && activeResource.value?.si === toIndex(si) && activeResource.value?.type === type }
@@ -333,6 +347,13 @@ function toggleSection(ci: string | number, si: string | number) {
   selectedChapter.value = toIndex(ci)
   selectedSection.value = willOpen ? key : null
   resetToIntro()
+}
+
+function toggleModule(ci: string | number, si: string | number, moduleName: string) {
+  const key = moduleKey(ci, si, moduleName)
+  const openSet = new Set(openModules.value)
+  openSet.has(key) ? openSet.delete(key) : openSet.add(key)
+  openModules.value = openSet
 }
 
 function resetToIntro() {

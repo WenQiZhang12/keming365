@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
+from django.db import connection
 from django.db.models import Q
 from django.utils import timezone
 
@@ -396,11 +397,21 @@ class DashboardView(APIView):
     GET /api/v1/admin/dashboard/
     """
 
-    authentication_classes = []
-    permission_classes = []
+    permission_classes = [IsTeacherOrAdmin]
 
     def get(self, request):
-        return Response({'userCount': 100, 'courseCount': 50, 'experimentCount': 200, 'orderCount': 10, 'todayNewUsers': 5, 'todayOrders': 2})
+        today = timezone.localdate()
+        has_orders_table = Orders._meta.db_table in connection.introspection.table_names()
+        serializer = DashboardSerializer(data={
+            'userCount': TbUser.objects.count(),
+            'courseCount': TbCurriculum.objects.count(),
+            'experimentCount': TbExperiment.objects.count(),
+            'orderCount': Orders.objects.count() if has_orders_table else 0,
+            'todayNewUsers': TbUser.objects.filter(createTime__date=today).count(),
+            'todayOrders': Orders.objects.filter(createTime__date=today).count() if has_orders_table else 0,
+        })
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.validated_data)
 
 
 class AiVrCourseContentViewSet(ModelViewSet):

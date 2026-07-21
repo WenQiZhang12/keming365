@@ -32,7 +32,7 @@
               </div>
               <div v-else-if="sec.type === 'steps' && report.steps" class="steps-list">
                 <div v-for="(step, idx) in report.steps" :key="idx" class="step-item">
-                  <div class="step-num">{{ idx + 1 }}</div>
+                  <div class="step-num">{{ Number(idx) + 1 }}</div>
                   <div class="step-content">
                     <h4>{{ step.title || '步骤' }}</h4>
                     <p>{{ step.content || '' }}</p>
@@ -97,7 +97,8 @@ const loadReport = async () => {
   loading.value = true
   error.value = ''
   try {
-    report.value = await api.get(`/scores/reports/${id}/`)
+    const { data } = await api.get(`/scores/reports/${id}/`)
+    report.value = data
     document.title = '评阅报告 - 科明365VR教学云平台'
   } catch (e: any) {
     error.value = e.message || '请求失败'

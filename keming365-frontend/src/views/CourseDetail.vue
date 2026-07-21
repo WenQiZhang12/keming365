@@ -44,11 +44,11 @@
               <div v-if="!course.chapters || course.chapters.length === 0" class="empty">暂无章节内容</div>
               <div v-else>
                 <div v-for="(ch, ci) in course.chapters" :key="ci" class="chapter-item">
-                  <div class="ch-header" @click="toggleChapter(ci)">
-                    <span>📌 第{{ ci + 1 }}章：{{ ch.title }}</span>
-                    <span class="arrow" :class="{ open: openChapters[ci] }">▶</span>
+                  <div class="ch-header" @click="toggleChapter(Number(ci))">
+                    <span>📌 第{{ Number(ci) + 1 }}章：{{ ch.title }}</span>
+                    <span class="arrow" :class="{ open: openChapters[Number(ci)] }">▶</span>
                   </div>
-                  <div class="ch-body" :class="{ open: openChapters[ci] }">
+                  <div class="ch-body" :class="{ open: openChapters[Number(ci)] }">
                     <div v-if="!ch.node || ch.node.length === 0" class="ch-empty">暂无课时</div>
                     <div v-for="n in ch.node" :key="n.id" class="lesson" @click="playLesson(n.id)">
                       <span class="play">▶</span>
@@ -67,7 +67,7 @@
                 <div v-for="exp in course.experiments" :key="exp.id" class="experiment-card" @click="startExperiment(exp.id)">
                   <div class="exp-icon">
                     <img v-if="getImageUrl(exp.image)" :src="getImageUrl(exp.image)" alt=""
-                         @error="$event.target.style.display='none'">
+                         @error="hideBrokenImage">
                     <span v-else>🔬</span>
                   </div>
                   <div class="exp-info">
@@ -111,7 +111,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api, { getCurriculumDetail } from '@/api'
-import { getImageUrl, formatDate, toast } from '@/utils'
+import { getImageUrl, formatDate, hideBrokenImage, toast } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()

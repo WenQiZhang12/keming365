@@ -22,7 +22,9 @@ npm run dev
 ## 构建
 
 ```powershell
-npx vite build
+npm run build
 ```
 
-`npm run build` 会额外执行 TypeScript 类型检查，需先处理项目现有的类型错误。
+`npm run build` 会先执行完整 TypeScript 类型检查，再生成 `dist`。
+
+生产 Docker 部署统一从仓库根目录执行，参见根目录 `README.md` 和 `DEPLOY.md`。

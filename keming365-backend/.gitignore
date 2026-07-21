@@ -31,4 +31,7 @@ media/
 *.wmv
 *.mkv
 *.webm
+!static/
+static/*
+!static/.gitkeep
 

@@ -37,11 +37,13 @@ COPY --from=builder /install /usr/local
 # 拷贝项目代码
 COPY . .
 
-# 收集静态文件
-RUN python manage.py collectstatic --settings=config.settings.prod --noinput
+RUN mkdir -p /app/logs /app/media /app/static /app/staticfiles \
+    && chmod +x /app/docker-entrypoint.sh
 
 # 暴露端口
 EXPOSE 8000
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 # 使用 gunicorn 启动
 CMD ["gunicorn", "config.wsgi:application", \

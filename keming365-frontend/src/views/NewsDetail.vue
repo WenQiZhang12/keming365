@@ -27,7 +27,7 @@
         </div>
         <div v-if="news.coverImg" class="cover">
           <img :src="getImageUrl(news.coverImg)" :alt="news.title"
-               @error="$event.target.style.display='none'"
+               @error="hideBrokenImage"
         </div>
         <div v-else class="cover">
           <div class="placeholder">📰</div>
@@ -42,7 +42,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { getNewsDetail } from '@/api'
-import { getImageUrl, formatDate } from '@/utils'
+import { getImageUrl, formatDate, hideBrokenImage } from '@/utils'
 import type { NewsItem } from '@/types'
 
 const route = useRoute()

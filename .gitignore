@@ -2,6 +2,11 @@
 keming365-backend.7z
 **/.git.local-backup/
 
+# Root deployment environment
+.env
+.env.*
+!.env.example
+
 # Frontend dependencies and build output
 keming365-frontend/node_modules/
 keming365-frontend/dist/
@@ -29,6 +34,9 @@ keming365-backend/**/*.flv
 keming365-backend/**/*.wmv
 keming365-backend/**/*.mkv
 keming365-backend/**/*.webm
+!keming365-backend/static/
+keming365-backend/static/*
+!keming365-backend/static/.gitkeep
 
 # Editors and operating-system files
 .idea/

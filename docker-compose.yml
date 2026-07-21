@@ -1,0 +1,101 @@
+name: keming365
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_DATABASE: ${DB_NAME:-new365}
+      MYSQL_USER: ${DB_USER:-keming365}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_CHARACTER_SET_SERVER: utf8mb4
+      MYSQL_COLLATION_SERVER: utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ./keming365-backend
+    restart: unless-stopped
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.prod
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Set DJANGO_SECRET_KEY in .env}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-http://localhost:8080}
+      SECURE_SSL_REDIRECT: ${SECURE_SSL_REDIRECT:-false}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      CSRF_COOKIE_SECURE: ${CSRF_COOKIE_SECURE:-false}
+      DB_NAME: ${DB_NAME:-new365}
+      DB_USER: ${DB_USER:-keming365}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      ADMIN_REGISTRATION_CODE: ${ADMIN_REGISTRATION_CODE:-}
+      TEMP_ADMIN_REGISTRATION_CODE: ${TEMP_ADMIN_REGISTRATION_CODE:-}
+      TEMP_ADMIN_MAX_DAYS: ${TEMP_ADMIN_MAX_DAYS:-7}
+      AI_ASSISTANT_API_KEY: ${AI_ASSISTANT_API_KEY:-}
+      YUNQ_ACCESS_KEY: ${YUNQ_ACCESS_KEY:-}
+      YUNQ_PULLET_SECRET: ${YUNQ_PULLET_SECRET:-}
+      YUNQ_EXPERIMENT_SECRET: ${YUNQ_EXPERIMENT_SECRET:-}
+      YUNQ_ACCESS_KEYS: ${YUNQ_ACCESS_KEYS:-}
+      YQ_APPKEY_EXPERIMENT: ${YQ_APPKEY_EXPERIMENT:-}
+      YQ_APPSECRET_EXPERIMENT: ${YQ_APPSECRET_EXPERIMENT:-}
+      YQ_APPKEY_FRAGMENT: ${YQ_APPKEY_FRAGMENT:-}
+      YQ_APPSECRET_FRAGMENT: ${YQ_APPSECRET_FRAGMENT:-}
+      YQ_APPKEY_TRAINING: ${YQ_APPKEY_TRAINING:-}
+      YQ_APPSECRET_TRAINING: ${YQ_APPSECRET_TRAINING:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - media_data:/app/media
+      - static_data:/app/staticfiles
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8000), 3); s.close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./keming365-frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    volumes:
+      - media_data:/app/media:ro
+      - static_data:/app/staticfiles:ro
+
+volumes:
+  mysql_data:
+  redis_data:
+  media_data:
+  static_data:

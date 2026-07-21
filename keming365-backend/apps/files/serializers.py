@@ -83,7 +83,6 @@ class VideoSerializer(serializers.ModelSerializer):
     videoType = serializers.SerializerMethodField(help_text='视频类型')
     duration = serializers.SerializerMethodField(help_text='视频时长')
     createTime = serializers.DateTimeField(
-        source='createTime',
         read_only=True,
         help_text='创建时间',
     )

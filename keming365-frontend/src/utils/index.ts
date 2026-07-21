@@ -7,6 +7,11 @@ export function getImageUrl(path: string): string {
   return IMG_BASE + (path.startsWith('/') ? '' : '/') + path
 }
 
+export function hideBrokenImage(event: Event): void {
+  const image = event.currentTarget
+  if (image instanceof HTMLImageElement) image.style.display = 'none'
+}
+
 export function escapeHtml(str: string): string {
   if (!str) return ''
   return String(str).replace(/[&<>"']/g, (m) => {

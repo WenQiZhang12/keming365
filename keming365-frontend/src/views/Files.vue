@@ -36,7 +36,7 @@
       <div v-else class="file-grid">
         <div v-for="(f, i) in filteredFiles" :key="i" class="file-card" @click="previewFile(f)">
           <div class="preview">
-            <img v-if="f.type === 'image' && f.url" :src="f.url" alt="" @error="$event.target.style.display='none'">
+            <img v-if="f.type === 'image' && f.url" :src="f.url" alt="" @error="hideBrokenImage">
             <span v-else>{{ iconFor(f.type) }}</span>
           </div>
           <div class="info">
@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import api from '@/api'
-import { toast } from '@/utils'
+import { hideBrokenImage, toast } from '@/utils'
 
 interface UploadedFile { url: string; name: string; size: string; type: string; ext: string; time: string }
 

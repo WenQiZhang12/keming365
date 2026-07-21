@@ -52,6 +52,15 @@ export interface PaginatedResponse<T> {
   previous?: string
 }
 
+export interface ExperimentReport {
+  id: number | string
+  experimentName?: string
+  studentName?: string
+  createTime?: string
+  reportScore?: number | string | null
+  status: number
+}
+
 export interface LoginResponse {
   access: string
   user: UserInfo
