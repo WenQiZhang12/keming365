@@ -3,7 +3,6 @@
 
 from .admin import (
     AiVrCourseContentViewSet,
-    CourseManageViewSet,
     DashboardView,
     ExperimentManageViewSet,
     NewsManageViewSet,
@@ -15,7 +14,6 @@ from .admin import (
 __all__ = [
     'AiVrCourseContentViewSet',
     'UserManageViewSet',
-    'CourseManageViewSet',
     'ExperimentManageViewSet',
     'SchoolManageViewSet',
     'ViewpagerManageViewSet',

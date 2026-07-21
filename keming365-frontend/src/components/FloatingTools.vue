@@ -54,10 +54,7 @@
 
     <Teleport to="body">
       <section v-if="showChat" class="ai-dialog" role="dialog" aria-modal="false" aria-label="科明AI">
-        <header class="ai-dialog-header">
-          <h2>科明AI</h2>
-          <button type="button" aria-label="关闭科明AI" @click="showChat = false"><X :size="22" /></button>
-        </header>
+        <button type="button" class="ai-dialog-close" aria-label="关闭科明AI" @click="showChat = false"><X :size="22" /></button>
         <iframe v-if="userStore.isLoggedIn" class="ai-frame" :src="aiUrl" title="科明AI对话窗口" />
         <div v-else class="ai-login-panel">
           <Bot :size="42" stroke-width="1.5" />
@@ -259,10 +256,8 @@ const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
   background: #f7f9fc;
   box-shadow: 0 12px 36px rgba(18, 41, 70, .24);
 }
-.ai-dialog-header { height: 58px; flex: 0 0 58px; display: flex; align-items: center; justify-content: center; border-bottom: 1px solid #e7ebf1; background: #f0f4f8; }
-.ai-dialog-header h2 { margin: 0; color: #25415d; font-size: 24px; font-weight: 700; }
-.ai-dialog-header button { position: absolute; top: 16px; right: 14px; padding: 4px; border: 0; color: #6b7b8f; background: transparent; cursor: pointer; }
-.ai-dialog-header button:hover { color: #1677ff; }
+.ai-dialog-close { position: absolute; z-index: 1; top: 16px; right: 14px; padding: 4px; border: 0; color: #6b7b8f; background: transparent; cursor: pointer; }
+.ai-dialog-close:hover { color: #1677ff; }
 .ai-frame { width: 100%; height: 100%; border: 0; background: #fff; }
 .ai-login-panel {
   flex: 1;

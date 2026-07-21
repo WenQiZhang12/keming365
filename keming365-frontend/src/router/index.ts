@@ -16,7 +16,6 @@ const router = createRouter({
     { path: '/zzch', name: 'Video', component: () => import('@/views/Video.vue') },
     { path: '/login', name: 'Login', component: () => import('@/views/Login.vue'), meta: { hideLayout: true } },
     { path: '/register', name: 'Register', component: () => import('@/views/Register.vue'), meta: { hideLayout: true } },
-    { path: '/course/:id', name: 'CourseDetail', component: () => import('@/views/CourseDetail.vue') },
     { path: '/enterItem', name: 'EnterItem', component: () => import('@/views/Experiment.vue') },
     { path: '/experiment/:id', name: 'Experiment', component: () => import('@/views/Experiment.vue') },
     { path: '/lesson', name: 'Lesson', component: () => import('@/views/Lesson.vue') },

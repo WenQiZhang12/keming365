@@ -69,44 +69,6 @@
         <Pagination :page="userPage" :total="userTotal" :page-size="20" @update:page="goUserPage" />
       </section>
 
-      <section v-else-if="activeTab === 'courses'" class="panel">
-        <div class="toolbar">
-          <input v-model="courseSearch" class="field" placeholder="搜索课程名称" @input="loadCourses" />
-        </div>
-        <table class="data-table course-table">
-          <colgroup>
-            <col class="course-name-col" />
-            <col class="course-category-col" />
-            <col class="course-price-col" />
-            <col class="course-status-col" />
-            <col class="course-created-col" />
-            <col class="course-action-col" />
-          </colgroup>
-          <thead>
-            <tr>
-              <th>课程名称</th>
-              <th>分类</th>
-              <th>价格</th>
-              <th>状态</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="course in courses" :key="course.id">
-              <td class="course-name-cell" :title="course.curriculumName">{{ course.curriculumName }}</td>
-              <td>{{ course.classifyId || '-' }}</td>
-              <td>{{ Number(course.price || 0) <= 0 ? '免费' : Number(course.price).toFixed(2) }}</td>
-              <td>{{ course.status ?? '-' }}</td>
-              <td>{{ course.createTime || '-' }}</td>
-              <td><button class="text-link" @click="viewCourse(course)">查看</button></td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-if="!courses.length" class="empty">暂无课程数据</div>
-        <Pagination :page="coursePage" :total="courseTotal" :page-size="20" @update:page="goCoursePage" />
-      </section>
-
       <section v-else-if="activeTab === 'aiVr'" class="panel ai-vr-panel">
         <div class="toolbar split">
           <div class="toolbar-left">
@@ -122,8 +84,13 @@
         <div class="editor-grid">
           <form class="edit-form" @submit.prevent="saveAiVrContent">
             <h2>{{ editingId ? '编辑 AI+VR 内容' : '新增 AI+VR 内容' }}</h2>
-            <label>课程名称<input v-model="aiVrForm.curriculum_name" class="field" required placeholder="如：画法几何与机械制图" /></label>
-            <label>课程 ID<input v-model="aiVrForm.curriculum_id" class="field" placeholder="可选，课程详情页有 ID 时会优先匹配" /></label>
+            <label>课程名称
+              <select v-model="selectedCourseId" class="field" required :disabled="coursesLoading" @change="selectExistingCourse">
+                <option value="" disabled>{{ coursesLoading ? '课程加载中...' : '请选择 AI+VR 课程' }}</option>
+                <option v-for="course in courseOptions" :key="course.id" :value="String(course.id)">{{ course.displayName }}</option>
+              </select>
+            </label>
+            <label>课程 ID<input :value="aiVrForm.curriculum_id" class="field readonly-field" readonly placeholder="选择课程后自动填写" /></label>
             <div class="two-col">
               <label>章标题<input v-model="aiVrForm.chapter_title" class="field" required placeholder="如：2.正投影基础" /></label>
               <label>章排序<input v-model.number="aiVrForm.chapter_order" class="field" type="number" min="0" /></label>
@@ -193,6 +160,7 @@ import api, {
   createAdminAiVrContent,
   deleteAdminAiVrContent,
   getAdminAiVrContents,
+  getCurricula,
   updateAdminAiVrContent,
   uploadAdminAiVrFile,
   type AiVrContentItem
@@ -201,14 +169,14 @@ import { hasAdminAccess, toast } from '@/utils'
 import { useUserStore } from '@/stores/user'
 import Pagination from '@/components/Pagination.vue'
 
-type TabKey = 'users' | 'courses' | 'aiVr' | 'system'
+type TabKey = 'users' | 'aiVr' | 'system'
+type CourseOption = { id: string | number; curriculumName: string; displayName: string }
 
 const router = useRouter()
 const userStore = useUserStore()
 const activeTab = ref<TabKey>('users')
 const tabs: Array<{ key: TabKey; label: string }> = [
   { key: 'users', label: '用户管理' },
-  { key: 'courses', label: '课程管理' },
   { key: 'aiVr', label: 'AI+VR内容' },
   { key: 'system', label: '系统信息' }
 ]
@@ -234,11 +202,6 @@ const userPage = ref(1)
 const userSearch = ref('')
 const userFilter = ref('')
 
-const courses = ref<any[]>([])
-const courseTotal = ref(0)
-const coursePage = ref(1)
-const courseSearch = ref('')
-
 const aiVrContents = ref<AiVrContentItem[]>([])
 const aiVrTotal = ref(0)
 const aiVrPage = ref(1)
@@ -247,6 +210,15 @@ const aiVrTypeFilter = ref('')
 const editingId = ref('')
 const uploading = ref(false)
 const uploadInput = ref<HTMLInputElement | null>(null)
+const courseOptions = ref<CourseOption[]>([])
+const selectedCourseId = ref('')
+const coursesLoading = ref(false)
+const aiVrCourseNames: Record<string, string> = {
+  '画法几何与机械制图': '画法几何与机械制图',
+  '液压与气压传动': '液压与气压传动',
+  '工程机械': '工程训练',
+  '工程训练': '工程训练'
+}
 
 const emptyAiVrForm = (): AiVrContentItem => ({
   curriculum_id: '',
@@ -313,23 +285,6 @@ function goUserPage(value: number) {
   loadUsers()
 }
 
-async function loadCourses() {
-  try {
-    const { data } = await api.get('/admin/courses/', {
-      params: { page: coursePage.value, search: courseSearch.value }
-    })
-    courses.value = data.results || []
-    courseTotal.value = data.count || 0
-  } catch (error: any) {
-    toast(error.message || '加载课程失败', 'error')
-  }
-}
-
-function goCoursePage(value: number) {
-  coursePage.value = value
-  loadCourses()
-}
-
 async function loadAiVrContents() {
   try {
     const data = await getAdminAiVrContents({
@@ -341,6 +296,27 @@ async function loadAiVrContents() {
     aiVrTotal.value = data.count || 0
   } catch (error: any) {
     toast(error.message || '加载 AI+VR 内容失败', 'error')
+  }
+}
+
+async function loadCourseOptions() {
+  if (coursesLoading.value || courseOptions.value.length) return
+  coursesLoading.value = true
+  try {
+    const data = await getCurricula({ page: 1, page_size: 100 })
+    courseOptions.value = (data.results || [])
+      .filter(course => Boolean(aiVrCourseNames[course.curriculumName || '']))
+      .map(course => ({
+        id: course.id,
+        curriculumName: course.curriculumName || '',
+        displayName: aiVrCourseNames[course.curriculumName || '']
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh-CN'))
+    if (editingId.value) syncCourseSelectionFromForm()
+  } catch (error: any) {
+    toast(error.message || '加载课程列表失败', 'error')
+  } finally {
+    coursesLoading.value = false
   }
 }
 
@@ -356,13 +332,16 @@ function switchTab(tab: TabKey) {
 
 function refreshCurrent() {
   if (activeTab.value === 'users') loadUsers()
-  if (activeTab.value === 'courses') loadCourses()
-  if (activeTab.value === 'aiVr') loadAiVrContents()
+  if (activeTab.value === 'aiVr') {
+    loadAiVrContents()
+    loadCourseOptions()
+  }
   if (activeTab.value === 'system') updateTime()
 }
 
 async function deleteUser(user: any) {
   if (!confirm(`确认彻底删除用户“${user.username}”？\n该用户的成绩、订单、课程记录等历史数据将一并删除，且无法恢复。`)) return
+  if (!confirm(`请再次确认：确定要删除用户“${user.username}”吗？\n这是最后一次确认，删除后无法恢复。`)) return
   try {
     const { data } = await api.delete(`/admin/users/${user.id}/`)
     toast(data.message || '用户及关联历史数据已删除', 'success')
@@ -372,26 +351,49 @@ async function deleteUser(user: any) {
   }
 }
 
-function viewCourse(course: any) {
-  router.push(`/course/${course.id}`)
-}
-
 function startCreate() {
   resetAiVrForm()
+  loadCourseOptions()
 }
 
 function editAiVrContent(item: AiVrContentItem) {
   editingId.value = item.id || ''
   aiVrForm.value = { ...item }
+  syncCourseSelectionFromForm()
+}
+
+function selectExistingCourse() {
+  const selected = courseOptions.value.find(course => String(course.id) === selectedCourseId.value)
+  aiVrForm.value.curriculum_id = selected ? String(selected.id) : ''
+  aiVrForm.value.curriculum_name = selected?.curriculumName || ''
+}
+
+function syncCourseSelectionFromForm() {
+  const match = courseOptions.value.find(course => (
+    (aiVrForm.value.curriculum_id && String(course.id) === String(aiVrForm.value.curriculum_id))
+    || course.curriculumName === aiVrForm.value.curriculum_name
+  ))
+  if (match) {
+    selectedCourseId.value = String(match.id)
+    aiVrForm.value.curriculum_id = String(match.id)
+    aiVrForm.value.curriculum_name = match.curriculumName
+    return
+  }
+  selectedCourseId.value = ''
 }
 
 function resetAiVrForm() {
   editingId.value = ''
   aiVrForm.value = emptyAiVrForm()
+  selectedCourseId.value = ''
   if (uploadInput.value) uploadInput.value.value = ''
 }
 
 async function saveAiVrContent() {
+  if (!selectedCourseId.value) {
+    toast('请选择 AI+VR 课程', 'error')
+    return
+  }
   try {
     if (editingId.value) {
       await updateAdminAiVrContent(editingId.value, aiVrForm.value)
@@ -452,7 +454,7 @@ onMounted(() => {
   updateTime()
   timer = window.setInterval(updateTime, 1000)
   loadStats()
-  loadUsers()
+  refreshCurrent()
 })
 
 onUnmounted(() => {
@@ -493,16 +495,6 @@ onUnmounted(() => {
   th, td { border-bottom: 1px solid #edf2f7; padding: 11px 8px; text-align: left; font-size: 13px; vertical-align: top; }
   th { color: #475569; background: #f8fafc; font-weight: 600; }
 }
-.course-table { table-layout: fixed;
-  .course-name-col { width: 40%; }
-  .course-category-col { width: 8%; }
-  .course-price-col { width: 8%; }
-  .course-status-col { width: 8%; }
-  .course-created-col { width: 27%; }
-  .course-action-col { width: 9%; }
-  th, td { white-space: nowrap; }
-  .course-name-cell { overflow: hidden; text-overflow: ellipsis; }
-}
 .user-table { table-layout: fixed;
   .user-username-col { width: 17%; }
   .user-name-col { width: 12%; }
@@ -523,6 +515,7 @@ onUnmounted(() => {
   h2 { font-size: 17px; color: #172554; margin: 0 0 14px; }
   label { display: block; color: #334155; font-size: 13px; margin-bottom: 12px; }
 }
+.readonly-field { color: #64748b; background: #f1f5f9; cursor: default; }
 .two-col { display: grid; grid-template-columns: 1fr 110px; gap: 10px; }
 .form-tip { margin: -6px 0 12px; color: #0f766e; font-size: 12px; line-height: 1.6; }
 .upload-row { display: flex; gap: 10px; align-items: center; color: #64748b; font-size: 12px; margin-bottom: 12px; }

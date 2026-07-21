@@ -39,7 +39,6 @@ from apps.admin_panel.ai_vr_serializers import AiVrCourseContentSerializer
 from apps.admin_panel.user_deletion import delete_user_with_history
 
 from apps.admin_panel.serializers import (
-    AdminCurriculumSerializer,
     AdminExperimentSerializer,
     AdminNewsSerializer,
     AdminNewsWriteSerializer,
@@ -170,49 +169,6 @@ class UserManageViewSet(ModelViewSet):
             'message': f'用户“{username}”及关联历史数据已删除',
             'details': result,
         }, status=status.HTTP_200_OK)
-
-
-# ============================================================================
-# 课程管理
-# ============================================================================
-
-class CourseManageViewSet(ModelViewSet):
-    """
-    课程管理
-
-    list    GET    /api/v1/admin/courses/        - 课程列表
-    create  POST   /api/v1/admin/courses/        - 创建课程
-    retrieve GET   /api/v1/admin/courses/{id}/   - 课程详情
-    update  PUT    /api/v1/admin/courses/{id}/   - 编辑课程
-    destroy DELETE /api/v1/admin/courses/{id}/   - 删除课程
-    """
-
-    queryset = TbCurriculum.objects.all()
-    serializer_class = AdminCurriculumSerializer
-    permission_classes = [IsTeacherOrAdmin]
-    pagination_class = StandardPagination
-    lookup_field = 'pk'
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        # 按名称搜索
-        search = self.request.query_params.get('search', '').strip()
-        if search:
-            from django.db.models import Q
-            qs = qs.filter(
-                Q(curriculumName__icontains=search)
-            )
-        # 按分类过滤
-        classify_id = self.request.query_params.get('classifyId')
-        if classify_id:
-            qs = qs.filter(classifyId=classify_id)
-        return qs.order_by('-createTime')
-
-    def perform_create(self, serializer):
-        serializer.save(createTime=timezone.now())
-
-    def perform_update(self, serializer):
-        serializer.save()
 
 
 # ============================================================================

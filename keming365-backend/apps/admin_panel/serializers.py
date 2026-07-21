@@ -2,14 +2,14 @@
 """
 apps.admin_panel.serializers - 管理后台 序列化器
 
-为管理员提供用户、课程、实验、学校、轮播图、新闻的管理序列化。
+为管理员提供用户、实验、学校、轮播图、新闻的管理序列化。
 """
 
 from rest_framework import serializers
 
 from apps.accounts.models import TbUser
 from apps.common.models import TbSchoolInfo
-from apps.courses.models import TbCurriculum, TbExperiment
+from apps.courses.models import TbExperiment
 from apps.home.models import TbViewpager
 from apps.news.models import News
 from apps.payments.models import Orders
@@ -89,29 +89,6 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
         if value not in (1, 2, 4, 5, 8):
             raise serializers.ValidationError('用户类型无效（1=教师, 2=学生, 4=管理员, 5=普通用户, 8=临时管理员）')
         return value
-
-
-# ============================================================================
-# 课程管理
-# ============================================================================
-
-class AdminCurriculumSerializer(serializers.ModelSerializer):
-    """课程管理序列化器"""
-
-    id = serializers.CharField(read_only=True)
-    createTime = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
-
-    class Meta:
-        model = TbCurriculum
-        fields = [
-            'id', 'curriculumName', 'classifyId', 'price',
-            'status', 'sortOrder', 'createTime',
-        ]
-
-    def create(self, validated_data):
-        import uuid
-        validated_data['id'] = uuid.uuid4().hex[:32]
-        return super().create(validated_data)
 
 
 # ============================================================================

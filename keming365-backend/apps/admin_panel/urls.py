@@ -11,7 +11,6 @@ from rest_framework.routers import DefaultRouter
 
 from apps.admin_panel.views import (
     AiVrCourseContentViewSet,
-    CourseManageViewSet,
     DashboardView,
     ExperimentManageViewSet,
     NewsManageViewSet,
@@ -26,7 +25,6 @@ from apps.admin_panel.views import (
 
 router = DefaultRouter()
 router.register(r'users', UserManageViewSet, basename='admin-user')
-router.register(r'courses', CourseManageViewSet, basename='admin-course')
 router.register(r'experiments', ExperimentManageViewSet, basename='admin-experiment')
 router.register(r'schools', SchoolManageViewSet, basename='admin-school')
 router.register(r'viewpagers', ViewpagerManageViewSet, basename='admin-viewpager')

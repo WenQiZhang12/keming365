@@ -3,11 +3,12 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from rest_framework.request import Request
 from rest_framework.test import APIRequestFactory, force_authenticate
 
-from apps.admin_panel.views.admin import DashboardView
+from apps.admin_panel.models import AiVrCourseContent
+from apps.admin_panel.views.admin import AiVrCourseContentViewSet, DashboardView
 from utils.pagination import StandardPagination
 
 
@@ -117,3 +118,74 @@ class StandardPaginationTests(SimpleTestCase):
         page = paginator.paginate_queryset(list(range(150)), request)
 
         self.assertEqual(len(page), 100)
+
+
+class AiVrCourseContentCrudTests(TestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.admin = authenticated_user(4)
+        self.payload = {
+            'curriculum_id': 'course-100',
+            'curriculum_name': '画法几何与机械制图',
+            'chapter_title': '第一章',
+            'chapter_order': 1,
+            'section_title': '第一节',
+            'section_order': 1,
+            'resource_type': 'video',
+            'title': '课程视频',
+            'url': '/media/test.mp4',
+            'description': '带你学测试内容',
+            'enabled': True,
+            'sort_order': 1,
+        }
+
+    def test_admin_can_create_learning_content_for_existing_course(self):
+        request = self.factory.post('/api/v1/admin/ai-vr/', self.payload, format='json')
+        force_authenticate(request, user=self.admin)
+
+        response = AiVrCourseContentViewSet.as_view({'post': 'create'})(request)
+
+        self.assertEqual(response.status_code, 201)
+        content = AiVrCourseContent.objects.get(pk=response.data['id'])
+        self.assertEqual(content.curriculum_id, 'course-100')
+        self.assertEqual(content.curriculum_name, '画法几何与机械制图')
+        self.assertEqual(content.resource_type, 'video')
+
+    def test_admin_can_update_existing_content_to_practice_type(self):
+        content = AiVrCourseContent.objects.create(**{
+            key: value for key, value in self.payload.items() if key != 'title'
+        }, title='原课程视频')
+        updated_payload = {
+            **self.payload,
+            'resource_type': 'test',
+            'title': '在线测验',
+            'url': '',
+            'description': '陪你练测试内容',
+        }
+        request = self.factory.put(
+            f'/api/v1/admin/ai-vr/{content.pk}/',
+            updated_payload,
+            format='json',
+        )
+        force_authenticate(request, user=self.admin)
+
+        response = AiVrCourseContentViewSet.as_view({'put': 'update'})(request, pk=content.pk)
+
+        self.assertEqual(response.status_code, 200)
+        content.refresh_from_db()
+        self.assertEqual(content.resource_type, 'test')
+        self.assertEqual(content.title, '在线测验')
+        self.assertEqual(content.description, '陪你练测试内容')
+
+    def test_admin_cannot_create_content_for_unsupported_course(self):
+        request = self.factory.post(
+            '/api/v1/admin/ai-vr/',
+            {**self.payload, 'curriculum_name': '材料力学'},
+            format='json',
+        )
+        force_authenticate(request, user=self.admin)
+
+        response = AiVrCourseContentViewSet.as_view({'post': 'create'})(request)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(AiVrCourseContent.objects.count(), 0)
