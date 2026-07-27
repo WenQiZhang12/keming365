@@ -86,7 +86,6 @@ import { reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Check, LockKeyhole, UserRound } from '@lucide/vue'
 import { useUserStore } from '@/stores/user'
-import { hasAdminAccess } from '@/utils'
 
 const router = useRouter()
 const route = useRoute()
@@ -96,7 +95,6 @@ const loading = ref(false)
 const errorMsg = ref('')
 
 const form = reactive({ username: '', password: '' })
-const canAccessAdmin = () => hasAdminAccess(userStore.user)
 
 const doLogin = async () => {
   errorMsg.value = ''
@@ -108,7 +106,7 @@ const doLogin = async () => {
     await userStore.login(form.username.trim(), form.password)
     const redirect = (route.query.redirect as string)
       || sessionStorage.getItem('redirectAfterLogin')
-      || (canAccessAdmin() ? '/admin' : '/')
+      || '/'
     sessionStorage.removeItem('redirectAfterLogin')
     router.push(redirect)
   } catch (e: any) {
@@ -124,7 +122,7 @@ const showForgotPassword = () => {
 
 onMounted(() => {
   if (userStore.token) {
-    router.push((route.query.redirect as string) || (canAccessAdmin() ? '/admin' : '/'))
+    router.push((route.query.redirect as string) || '/')
   }
 })
 </script>

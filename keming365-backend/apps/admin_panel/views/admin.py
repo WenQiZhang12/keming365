@@ -23,7 +23,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet
@@ -380,8 +380,6 @@ class AiVrCourseContentViewSet(ModelViewSet):
     lookup_field = 'pk'
 
     def get_permissions(self):
-        if self.action in ('course', 'assistant'):
-            return [AllowAny()]
         return [IsTeacherOrAdmin()]
 
     def get_queryset(self):
@@ -669,3 +667,14 @@ class AiVrCourseContentViewSet(ModelViewSet):
             return result.get('choices', [{}])[0].get('message', {}).get('content', '').strip()
         except (HTTPError, URLError, TimeoutError, KeyError, ValueError):
             return ''
+
+
+class PublicAiVrCourseContentViewSet(AiVrCourseContentViewSet):
+    """Read-only learning endpoints kept outside the admin URL namespace."""
+
+    def get_permissions(self):
+        if self.action == 'course':
+            return [AllowAny()]
+        if self.action == 'assistant':
+            return [IsAuthenticated()]
+        return [IsTeacherOrAdmin()]

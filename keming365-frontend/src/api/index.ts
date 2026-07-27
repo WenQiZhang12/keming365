@@ -175,7 +175,7 @@ export async function uploadAdminAiVrFile(file: File, type: string): Promise<{ u
 export async function getAiVrCourseContent(params: {
   curriculumName?: string; curriculumId?: string | number
 }): Promise<any> {
-  const { data } = await api.get('/admin/ai-vr/course/', { params })
+  const { data } = await api.get('/ai-vr/course/', { params })
   return data
 }
 
@@ -194,7 +194,7 @@ export async function askAiVrAssistant(payload: {
   curriculumName?: string
   curriculumId?: string | number
 }): Promise<{ answer: string; recommendations: AiVrAssistantRecommendation[]; llmEnabled: boolean }> {
-  const { data } = await api.post('/admin/ai-vr/assistant/', payload)
+  const { data } = await api.post('/ai-vr/assistant/', payload)
   return data
 }
 

@@ -5,10 +5,16 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase, TestCase
 from rest_framework.request import Request
+from rest_framework.response import Response
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.admin_panel.models import AiVrCourseContent
-from apps.admin_panel.views.admin import AiVrCourseContentViewSet, DashboardView
+from apps.admin_panel.views.admin import (
+    AiVrCourseContentViewSet,
+    DashboardView,
+    PublicAiVrCourseContentViewSet,
+    UserManageViewSet,
+)
 from utils.pagination import StandardPagination
 
 
@@ -95,6 +101,87 @@ class DashboardViewTests(SimpleTestCase):
         order_filter.assert_not_called()
 
 
+class AdminApiPermissionMatrixTests(SimpleTestCase):
+    ROLE_CASES = (
+        ('anonymous', None),
+        ('student', 2),
+        ('teacher', 1),
+        ('admin', 4),
+    )
+
+    def setUp(self):
+        self.factory = APIRequestFactory()
+
+    def assert_matrix(self, endpoint, view, request_factory, expected):
+        for role, user_type in self.ROLE_CASES:
+            with self.subTest(endpoint=endpoint, role=role):
+                request = request_factory()
+                if user_type is not None:
+                    force_authenticate(request, user=authenticated_user(user_type))
+                self.assertEqual(view(request).status_code, expected[user_type])
+
+    def test_admin_namespace_permission_matrix(self):
+        expected = {None: 401, 2: 403, 1: 200, 4: 200}
+        cases = (
+            (
+                'dashboard',
+                patch.object(DashboardView, 'get', return_value=Response({})),
+                lambda: DashboardView.as_view(),
+                lambda: self.factory.get('/api/v1/admin/dashboard/'),
+            ),
+            (
+                'users',
+                patch.object(UserManageViewSet, 'list', return_value=Response([])),
+                lambda: UserManageViewSet.as_view({'get': 'list'}),
+                lambda: self.factory.get('/api/v1/admin/users/'),
+            ),
+            (
+                'ai_vr_contents',
+                patch.object(AiVrCourseContentViewSet, 'list', return_value=Response([])),
+                lambda: AiVrCourseContentViewSet.as_view({'get': 'list'}),
+                lambda: self.factory.get('/api/v1/admin/ai-vr/'),
+            ),
+            (
+                'admin_ai_vr_course',
+                patch.object(AiVrCourseContentViewSet, 'course', return_value=Response({'chapters': []})),
+                lambda: AiVrCourseContentViewSet.as_view({'get': 'course'}),
+                lambda: self.factory.get('/api/v1/admin/ai-vr/course/'),
+            ),
+            (
+                'admin_ai_vr_assistant',
+                patch.object(AiVrCourseContentViewSet, 'assistant', return_value=Response({'answer': ''})),
+                lambda: AiVrCourseContentViewSet.as_view({'post': 'assistant'}),
+                lambda: self.factory.post('/api/v1/admin/ai-vr/assistant/', {'question': 'test'}, format='json'),
+            ),
+        )
+
+        for endpoint, handler_patch, view_factory, request_factory in cases:
+            with handler_patch:
+                self.assert_matrix(endpoint, view_factory(), request_factory, expected)
+
+    def test_public_ai_vr_permission_matrix(self):
+        cases = (
+            (
+                'public_course',
+                patch.object(PublicAiVrCourseContentViewSet, 'course', return_value=Response({'chapters': []})),
+                PublicAiVrCourseContentViewSet.as_view({'get': 'course'}),
+                lambda: self.factory.get('/api/v1/ai-vr/course/'),
+                {None: 200, 2: 200, 1: 200, 4: 200},
+            ),
+            (
+                'public_assistant',
+                patch.object(PublicAiVrCourseContentViewSet, 'assistant', return_value=Response({'answer': ''})),
+                PublicAiVrCourseContentViewSet.as_view({'post': 'assistant'}),
+                lambda: self.factory.post('/api/v1/ai-vr/assistant/', {'question': 'test'}, format='json'),
+                {None: 401, 2: 200, 1: 200, 4: 200},
+            ),
+        )
+
+        for endpoint, handler_patch, view, request_factory, expected in cases:
+            with handler_patch:
+                self.assert_matrix(endpoint, view, request_factory, expected)
+
+
 class StandardPaginationTests(SimpleTestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
@@ -138,6 +225,74 @@ class AiVrCourseContentCrudTests(TestCase):
             'enabled': True,
             'sort_order': 1,
         }
+
+    def test_public_course_endpoint_is_outside_admin_and_allows_anonymous_reads(self):
+        response = self.client.get(
+            '/api/v1/ai-vr/course/',
+            {'curriculumName': self.payload['curriculum_name']},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('chapters', response.data)
+
+    def test_student_cannot_use_course_action_under_admin_prefix(self):
+        request = self.factory.get(
+            '/api/v1/admin/ai-vr/course/',
+            {'curriculumName': self.payload['curriculum_name']},
+        )
+        force_authenticate(request, user=authenticated_user(2))
+
+        response = AiVrCourseContentViewSet.as_view({'get': 'course'})(request)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_public_assistant_requires_login_and_allows_authenticated_roles(self):
+        view = PublicAiVrCourseContentViewSet.as_view({'post': 'assistant'})
+        anonymous_request = self.factory.post(
+            '/api/v1/ai-vr/assistant/',
+            {'question': 'test question'},
+            format='json',
+        )
+        self.assertEqual(view(anonymous_request).status_code, 401)
+
+        for user_type in (2, 1, 4):
+            with self.subTest(user_type=user_type):
+                request = self.factory.post(
+                    '/api/v1/ai-vr/assistant/',
+                    {'question': 'test question'},
+                    format='json',
+                )
+                force_authenticate(request, user=authenticated_user(user_type))
+                with patch.object(PublicAiVrCourseContentViewSet, '_recommend_courses', return_value=[]), \
+                        patch.object(PublicAiVrCourseContentViewSet, '_call_llm', return_value=''):
+                    response = view(request)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn('answer', response.data)
+
+    def test_student_cannot_use_assistant_action_under_admin_prefix(self):
+        request = self.factory.post(
+            '/api/v1/admin/ai-vr/assistant/',
+            {'question': 'test question'},
+            format='json',
+        )
+        force_authenticate(request, user=authenticated_user(2))
+
+        response = AiVrCourseContentViewSet.as_view({'post': 'assistant'})(request)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_teacher_and_admin_can_use_course_action_under_admin_prefix(self):
+        view = AiVrCourseContentViewSet.as_view({'get': 'course'})
+        for user_type in (1, 4):
+            with self.subTest(user_type=user_type):
+                request = self.factory.get(
+                    '/api/v1/admin/ai-vr/course/',
+                    {'curriculumName': self.payload['curriculum_name']},
+                )
+                force_authenticate(request, user=authenticated_user(user_type))
+
+                self.assertEqual(view(request).status_code, 200)
 
     def test_admin_can_create_learning_content_for_existing_course(self):
         request = self.factory.post('/api/v1/admin/ai-vr/', self.payload, format='json')

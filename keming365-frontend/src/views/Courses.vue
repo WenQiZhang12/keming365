@@ -1,5 +1,15 @@
 <template>
-  <div class="page-wrap">
+  <div class="courses-page">
+    <section v-if="showCategoryBanner" class="category-banner" :aria-label="categoryBannerAlt">
+      <img
+        :src="categoryBannerUrl"
+        :alt="categoryBannerAlt"
+        width="1900"
+        height="320"
+        @error="failedCategoryBannerUrl = categoryBannerUrl"
+      />
+    </section>
+    <div class="page-wrap">
     <form v-if="isHomeSearchResult" class="result-search" @submit.prevent="doSearch">
       <Search :size="19" aria-hidden="true" />
       <input v-model="searchText" type="search" placeholder="请输入学习资源名称" aria-label="搜索学习资源" autocomplete="off" />
@@ -25,10 +35,6 @@
       <template v-else>
         <div :class="['exp-type-tab', { active: state.expType === '0' && state.resourceMode === 'vr', disabled: state.resourceMode === 'ai' }]" @click="state.resourceMode === 'vr' && switchExpType('0')">实验教学</div>
         <div :class="['exp-type-tab', { active: state.expType === '1' && state.resourceMode === 'vr', disabled: state.resourceMode === 'ai' }]" @click="state.resourceMode === 'vr' && switchExpType('1')">课堂教学</div>
-        <template v-if="state.classifyId == '3' || state.classifyId == 3">
-          <div :class="['exp-type-tab', { active: state.expType === '4' && state.resourceMode === 'vr', disabled: state.resourceMode === 'ai' }]" @click="state.resourceMode === 'vr' && switchExpType('4')">教学视频</div>
-          <div :class="['exp-type-tab', { active: state.expType === '5' && state.resourceMode === 'vr', disabled: state.resourceMode === 'ai' }]" @click="state.resourceMode === 'vr' && switchExpType('5')">典型实景资料</div>
-        </template>
         <div v-if="state.classifyId != '50' && state.classifyId != 50"
           :class="['exp-type-tab', { active: state.expType === '3' && state.resourceMode === 'vr', disabled: state.resourceMode === 'ai' }]" @click="state.resourceMode === 'vr' && switchExpType('3')">教学模型</div>
       </template>
@@ -101,6 +107,7 @@
       :page-size="PAGE_SIZE"
       @update:page="goPage"
     />
+    </div>
   </div>
 </template>
 
@@ -121,6 +128,25 @@ const CLASSIFY_ORDER: Record<string, number> = {
   '机械工程': 1, '工程训练': 2, '力学': 3, '土木工程': 4, '装配式建筑': 5,
   '大学物理': 6, '能源动力': 7, '水利工程': 8, '生物工程': 9, '文化艺术': 10, '航海类': 11, '学前教育/康养': 12
 }
+const CLASSIFY_BANNER_BY_NAME: Record<string, string> = {
+  '机械工程': 'lx01.png',
+  '工程训练': 'lx03.png',
+  '力学': 'lx02.png',
+  '土木工程': 'lx05.png',
+  '装配式建筑': 'lx11.png',
+  '大学物理': 'lx04.png',
+  '能源动力': 'lx08.png',
+  '水利工程': 'lx07.png',
+  '生物工程': 'lx06.png',
+  '文化艺术': 'lx09.png',
+  '航海类': 'lx12.png',
+  '学前教育/康养': 'lx13.png'
+}
+const CLASSIFY_BANNER_BY_ID: Record<string, string> = {
+  '1': 'lx01.png', '2': 'lx02.png', '3': 'lx03.png', '4': 'lx04.png',
+  '5': 'lx05.png', '6': 'lx06.png', '7': 'lx07.png', '8': 'lx08.png',
+  '9': 'lx09.png', '11': 'lx11.png', '12': 'lx12.png', '13': 'lx13.png'
+}
 
 interface CurriculumCard extends Curriculum { exps: { id: string | number; title: string; image?: string }[]; expsLoading: boolean }
 interface ExpItem extends Experiment { imageUrl?: string; fromName?: string; fromParam?: string }
@@ -134,6 +160,7 @@ const navBreadcrumb = ref('')
 const showExpTypeTabs = ref(false)
 const classifies = ref<Classify[]>([])
 const curriculaCards = ref<CurriculumCard[]>([])
+const failedCategoryBannerUrl = ref('')
 
 const state = reactive({
   classifyId: '' as string | number,
@@ -149,10 +176,24 @@ let currentCurriculumId: string | number = ''
 let fromClassifyDirectly = false
 const courseDisplayName = (name: string) => name === '工程机械' ? '工程训练' : name
 const displayCurriculumName = computed(() => courseDisplayName(currentCurriculumName.value))
+const currentClassify = computed(() => classifies.value.find(item => item.id == state.classifyId))
+const currentClassifyName = computed(() => currentClassify.value?.className || '')
+const categoryBannerUrl = computed(() => {
+  if (!state.classifyId || state.search) return ''
+  const fileName = CLASSIFY_BANNER_BY_NAME[currentClassifyName.value]
+    || CLASSIFY_BANNER_BY_ID[String(state.classifyId)]
+  return fileName ? `https://www.keming365.com/img/${fileName}` : ''
+})
+const showCategoryBanner = computed(() => (
+  Boolean(categoryBannerUrl.value) && failedCategoryBannerUrl.value !== categoryBannerUrl.value
+))
+const categoryBannerAlt = computed(() => (
+  currentClassifyName.value ? `${currentClassifyName.value}课程分类横幅` : '课程分类横幅'
+))
 
 const totalPages = computed(() => Math.ceil(state.total / PAGE_SIZE))
 
-const specialVrCurriculumNames = ['画法几何与机械制图', '液压与气压传动', '工程机械']
+const specialVrCurriculumNames = ['画法几何与机械制图', '液压与气压传动', '工程机械', '工程训练']
 const isDrawingCurriculum = computed(() => currentCurriculumName.value.includes('画法几何与机械制图'))
 const isSpecialVrCurriculum = computed(() => {
   if (state.viewMode !== 'experiments' || !state.curriculumId) return false
@@ -411,6 +452,8 @@ onMounted(async () => {
     state.curriculumId = urlCurriculum
     state.viewMode = 'experiments'
     getCurriculumDetail(urlCurriculum).then(course => {
+      state.classifyId = course.classifyId || ''
+      lastClassifyId = state.classifyId
       currentCurriculumName.value = course.curriculumName || '课程'
       navBreadcrumb.value = `<a href="javascript:;" onclick="return false">返回课程列表</a> &gt; <span>${displayCurriculumName.value}</span>`
     }).catch(() => {})
@@ -420,6 +463,8 @@ onMounted(async () => {
     // 先检查分类下是否只有一个课程
     getCurricula({ classifyId: urlClassify, page_size: 2 }).then(d => {
       const curricula = d.results || []
+      state.classifyId = urlClassify
+      lastClassifyId = urlClassify
       if (curricula.length === 1) {
         state.curriculumId = curricula[0].id
         state.viewMode = 'experiments'
@@ -428,9 +473,7 @@ onMounted(async () => {
         showSearch.value = false
         loadContent()
       } else {
-        state.classifyId = urlClassify
         state.viewMode = 'curricula'
-        lastClassifyId = urlClassify
         loadContent()
       }
     }).catch(() => {
@@ -444,6 +487,11 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
+.courses-page { flex: 1; width: 100%; min-width: 0; }
+.category-banner {
+  width: 100%; height: clamp(150px, 16.84vw, 320px); overflow: hidden; background: #173d9d;
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+}
 .page-wrap { flex: 1; padding: 24px 40px; max-width: 1200px; margin: 0 auto; width: 100%; }
 .result-search {
   width: min(720px, 100%); height: 46px; margin: 0 auto 18px;

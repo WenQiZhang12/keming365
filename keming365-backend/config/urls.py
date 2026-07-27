@@ -55,6 +55,7 @@ urlpatterns = [
         path('notifications/', include('apps.notifications.urls')),
         path('news/', include('apps.news.urls')),
         path('home/', include('apps.home.urls')),
+        path('ai-vr/', include('apps.admin_panel.public_urls')),
         path('admin/', include('apps.admin_panel.urls')),
         path('assessment/', include('apps.assessment.urls')),
         # path('common/', include('apps.common.urls')),
