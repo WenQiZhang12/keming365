@@ -4,65 +4,45 @@ Teacher Report - 教师实验报告管理 API
 对应 Java: ExperimentScoreController 中的教师查询部分 + sybgforteacher.jsp
 """
 
-import json
 from datetime import datetime
 
 from django.db import connection
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from rest_framework.decorators import api_view, permission_classes
 
-from apps.accounts.models import TbUser
-from utils.user_roles import is_admin, is_teacher_or_admin
-
-
-def _get_user_id(request):
-    """从请求中提取 userId"""
-    # 优先查 query 参数
-    uid = request.GET.get('userId')
-    if uid:
-        return uid
-    # POST JSON body
-    if request.method == 'POST':
-        try:
-            raw = request.read()
-            if raw:
-                body = json.loads(raw)
-                uid = body.get('userId')
-                if uid:
-                    return uid
-        except Exception:
-            pass
-        uid = request.POST.get('userId')
-        if uid:
-            return uid
-    return None
+from utils.permissions import IsTeacherOrAdmin
+from utils.user_roles import is_admin
 
 
-def _check_user(user_id):
-    """验证用户并返回 (user, error_msg)"""
-    if not user_id:
-        return None, '未登录'
-    try:
-        user = TbUser.objects.get(pk=user_id)
-    except TbUser.DoesNotExist:
-        return None, '用户不存在'
-    if not is_teacher_or_admin(user):
-        return None, '仅教师或管理员可操作'
-    return user, None
+def _teacher_can_manage_class(user, class_id):
+    if is_admin(user):
+        return True
+    with connection.cursor() as cur:
+        cur.execute(
+            'SELECT 1 FROM tb_class_info WHERE id=%s AND teacher_id=%s',
+            [class_id, str(user.id)],
+        )
+        return cur.fetchone() is not None
 
 
-@csrf_exempt
+def _score_access_clause(user):
+    if is_admin(user):
+        return '', []
+    return (
+        ' AND EXISTS (SELECT 1 FROM tb_class_info access_class '
+        'WHERE access_class.id=s.class_Id AND access_class.teacher_id=%s)',
+        [str(user.id)],
+    )
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsTeacherOrAdmin])
 def teacher_class_list(request):
     """
     GET/POST /api/v1/scores/teacher/classes/
     获取教师管理的班级列表
     """
-    if request.method not in ('GET', 'POST'):
-        return JsonResponse({'flag': 0, 'msg': '不支持的请求方法'})
-    user_id = _get_user_id(request)
-    user, err = _check_user(user_id)
-    if err:
-        return JsonResponse({'flag': 0, 'msg': err})
+    user = request.user
     with connection.cursor() as cur:
         if is_admin(user):
             # 管理员查看所有班级
@@ -81,19 +61,16 @@ def teacher_class_list(request):
     return JsonResponse({'flag': 1, 'list': results})
 
 
-@csrf_exempt
+@api_view(['GET', 'POST'])
+@permission_classes([IsTeacherOrAdmin])
 def teacher_course_list(request):
     """课程列表"""
-    if request.method not in ('GET', 'POST'):
-        return JsonResponse({'flag': 0, 'msg': '不支持的请求方法'})
-    user_id = _get_user_id(request)
-    user, err = _check_user(user_id)
-    if err:
-        return JsonResponse({'flag': 0, 'msg': err})
-    params = request.GET
+    params = request.query_params if request.method == 'GET' else request.data
     class_id = params.get('classId')
     if not class_id:
         return JsonResponse({'flag': 0, 'msg': '缺少 classId'})
+    if not _teacher_can_manage_class(request.user, class_id):
+        return JsonResponse({'detail': '无权访问该班级'}, status=403)
     with connection.cursor() as cur:
         cur.execute("SELECT school_id FROM tb_class_info WHERE id=%s", [class_id])
         row = cur.fetchone()
@@ -119,20 +96,17 @@ def teacher_course_list(request):
     return JsonResponse({'flag': 1, 'list': results})
 
 
-@csrf_exempt
+@api_view(['GET', 'POST'])
+@permission_classes([IsTeacherOrAdmin])
 def teacher_experiment_list(request):
     """实验列表"""
-    if request.method not in ('GET', 'POST'):
-        return JsonResponse({'flag': 0, 'msg': '不支持的请求方法'})
-    user_id = _get_user_id(request)
-    user, err = _check_user(user_id)
-    if err:
-        return JsonResponse({'flag': 0, 'msg': err})
-    params = request.GET
+    params = request.query_params if request.method == 'GET' else request.data
     class_id = params.get('classId')
     curriculum_id = params.get('curriculumId')
     if not class_id:
         return JsonResponse({'flag': 0, 'msg': '缺少 classId'})
+    if not _teacher_can_manage_class(request.user, class_id):
+        return JsonResponse({'detail': '无权访问该班级'}, status=403)
     with connection.cursor() as cur:
         if curriculum_id:
             cur.execute("""
@@ -156,30 +130,30 @@ def teacher_experiment_list(request):
     return JsonResponse({'flag': 1, 'list': results})
 
 
-@csrf_exempt
+@api_view(['GET', 'POST'])
+@permission_classes([IsTeacherOrAdmin])
 def teacher_report_list(request):
     """
     GET/POST /api/v1/scores/teacher/reports/
     获取教师管理的实验报告列表
     """
-    if request.method not in ('GET', 'POST'):
-        return JsonResponse({'flag': 0, 'msg': '不支持的请求方法'})
-    user_id = _get_user_id(request)
-    user, err = _check_user(user_id)
-    if err:
-        return JsonResponse({'flag': 0, 'msg': err})
-    params = request.GET
+    params = request.query_params if request.method == 'GET' else request.data
     class_id = params.get('classId')
     curriculum_id = params.get('curriculumId')
     experiment_id = params.get('experimentId')
-    start_page = int(params.get('startPage', '1'))
-    page_size = int(params.get('PageSize', '10'))
+    try:
+        start_page = max(int(params.get('startPage', '1')), 1)
+        page_size = min(max(int(params.get('PageSize', '10')), 1), 100)
+    except (TypeError, ValueError):
+        start_page, page_size = 1, 10
 
     if not class_id or not curriculum_id or not experiment_id:
         return JsonResponse({
             'flag': 0, 'msg': '缺少参数',
             'list': {'rows': [], 'pageInfo': {'pageNum': start_page, 'pages': 0, 'total': 0, 'prePage': 0, 'nextPage': 0, 'navigatepageNums': []}}
         })
+    if not _teacher_can_manage_class(request.user, class_id):
+        return JsonResponse({'detail': '无权访问该班级'}, status=403)
 
     offset = (start_page - 1) * page_size
     with connection.cursor() as cur:
@@ -236,11 +210,13 @@ def teacher_report_list(request):
     })
 
 
-@csrf_exempt
+@api_view(['GET'])
+@permission_classes([IsTeacherOrAdmin])
 def teacher_report_detail(request, report_id):
     """查询实验报告详情"""
+    access_clause, access_values = _score_access_clause(request.user)
     with connection.cursor() as cur:
-        cur.execute("""
+        cur.execute(f"""
             SELECT s.id, s.pdf_path, s.operation_score, s.report_score, s.score_sum,
                    s.experiment_id, s.curriculum_id, s.class_Id, s.user_id,
                    COALESCE(u.name, ''), COALESCE(e.title, ''), COALESCE(c.curriculum_name, '')
@@ -248,8 +224,8 @@ def teacher_report_detail(request, report_id):
             LEFT JOIN tb_user u ON s.user_id = u.id
             LEFT JOIN tb_experiment e ON s.experiment_id = e.id
             LEFT JOIN tb_curriculum c ON s.curriculum_id = c.id
-            WHERE s.id=%s
-        """, [report_id])
+            WHERE s.id=%s{access_clause}
+        """, [report_id, *access_values])
         row = cur.fetchone()
     if not row:
         return JsonResponse({'flag': 0, 'msg': '报告不存在'})
@@ -264,20 +240,32 @@ def teacher_report_detail(request, report_id):
     })
 
 
-@csrf_exempt
+@api_view(['POST'])
+@permission_classes([IsTeacherOrAdmin])
 def teacher_submit_score(request, report_id):
     """教师提交批阅分数"""
-    if request.method not in ('POST', 'GET'):
-        return JsonResponse({'flag': 0, 'msg': '仅支持 POST 或 GET'})
-    score_sum = request.GET.get('scoreSum')
+    score_sum = request.data.get('scoreSum') or request.query_params.get('scoreSum')
+    if score_sum in ('', None):
+        return JsonResponse({'flag': 0, 'msg': '请提供报告分数'}, status=400)
+    try:
+        score_sum = float(score_sum)
+        if score_sum < 0 or score_sum > 100:
+            raise ValueError
+    except (TypeError, ValueError):
+        return JsonResponse({'flag': 0, 'msg': '分数必须在0到100之间'}, status=400)
+
+    access_clause, access_values = _score_access_clause(request.user)
     now = datetime.now()
     with connection.cursor() as cur:
-        cur.execute("SELECT id FROM tb_experiment_score WHERE id=%s", [report_id])
+        cur.execute(
+            f'SELECT s.id FROM tb_experiment_score s WHERE s.id=%s{access_clause}',
+            [report_id, *access_values],
+        )
         if not cur.fetchone():
-            return JsonResponse({'flag': 0, 'msg': '记录不存在'})
-        if score_sum:
-            cur.execute(
-                "UPDATE tb_experiment_score SET report_score=%s, score_sum=%s, update_time=%s WHERE id=%s",
-                [score_sum, score_sum, now, report_id]
-            )
+            return JsonResponse({'flag': 0, 'msg': '记录不存在或无权操作'}, status=404)
+        cur.execute(
+            'UPDATE tb_experiment_score '
+            'SET report_score=%s, score_sum=%s, update_time=%s WHERE id=%s',
+            [score_sum, score_sum, now, report_id],
+        )
     return JsonResponse({'flag': 1, 'msg': '提交成功'})

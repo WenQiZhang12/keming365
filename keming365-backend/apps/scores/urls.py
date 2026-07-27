@@ -22,6 +22,13 @@ from apps.scores.views.teacher_report import (
     teacher_submit_score,
 )
 from apps.scores.views.student_report import student_report_list
+from apps.scores.views.report_api import (
+    all_reports,
+    my_reports,
+    report_detail,
+    report_file,
+    review_report,
+)
 from apps.scores.views.study_management import (
     study_courses,
     study_experiments,
@@ -49,6 +56,11 @@ urlpatterns = [
     re_path(r'^teacher/report/(?P<report_id>[^/]+)/score/$', teacher_submit_score, name='teacher_submit_score'),
     # --- 学生实验报告 ---
     path('student/reports/', student_report_list, name='student_report_list'),
+    path('my-reports/', my_reports, name='my_reports'),
+    path('all-reports/', all_reports, name='all_reports'),
+    re_path(r'^reports/(?P<report_id>[^/]+)/file/$', report_file, name='report_file'),
+    re_path(r'^reports/(?P<report_id>[^/]+)/$', report_detail, name='report_detail'),
+    re_path(r'^reports/(?P<report_id>[^/]+)/review/$', review_report, name='review_report'),
     # --- 学习管理（兼容旧 sycj.jsp） ---
     path('study/courses/', study_courses, name='study_courses'),
     path('study/experiments/', study_experiments, name='study_experiments'),

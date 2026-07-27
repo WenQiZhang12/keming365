@@ -12,8 +12,7 @@
       <div class="stats-row">
         <div class="stat-card c0"><div class="num">{{ stats.total }}</div><div class="label">总报告</div></div>
         <div class="stat-card c1"><div class="num">{{ stats.pending }}</div><div class="label">待评阅</div></div>
-        <div class="stat-card c2"><div class="num">{{ stats.passed }}</div><div class="label">已通过</div></div>
-        <div class="stat-card c3"><div class="num">{{ stats.rejected }}</div><div class="label">已驳回</div></div>
+        <div class="stat-card c2"><div class="num">{{ stats.reviewed }}</div><div class="label">已评分</div></div>
       </div>
 
       <div class="filter-bar">
@@ -21,8 +20,7 @@
         <select v-model="filterStatus" class="filter-select">
           <option value="all">全部状态</option>
           <option value="0">待评阅</option>
-          <option value="1">已通过</option>
-          <option value="-1">已驳回</option>
+          <option value="1">已评分</option>
         </select>
       </div>
 
@@ -57,8 +55,11 @@ import { useRouter } from 'vue-router'
 import api from '@/api'
 import Pagination from '@/components/Pagination.vue'
 import type { ExperimentReport, PaginatedResponse } from '@/types'
+import { useUserStore } from '@/stores/user'
+import { hasAdminAccess, toast } from '@/utils'
 
 const router = useRouter()
+const userStore = useUserStore()
 const reports = ref<ExperimentReport[]>([])
 const loading = ref(true)
 const search = ref('')
@@ -66,13 +67,12 @@ const filterStatus = ref('all')
 const page = ref(1)
 const totalCount = ref(0)
 
-const statusLabel: Record<number, string> = { 1: '✅ 已通过', 0: '⏳ 待评阅', '-1': '❌ 已驳回' }
+const statusLabel: Record<number, string> = { 1: '已评分', 0: '待评阅' }
 const stats = computed(() => {
   const total = reports.value.length
   const pending = reports.value.filter(r => r.status === 0).length
-  const passed = reports.value.filter(r => r.status === 1).length
-  const rejected = reports.value.filter(r => r.status === -1).length
-  return { total, pending, passed, rejected }
+  const reviewed = reports.value.filter(r => r.status === 1).length
+  return { total, pending, reviewed }
 })
 
 const filteredReports = computed(() => {
@@ -90,7 +90,7 @@ const filteredReports = computed(() => {
   return result
 })
 
-const statusClass = (s: number) => s === 1 ? 'pass' : s === 0 ? 'pending' : 'reject'
+const statusClass = (s: number) => s === 1 ? 'pass' : 'pending'
 
 const goReview = (r: ExperimentReport) => {
   router.push({ path: '/review-report', query: { id: String(r.id) } })
@@ -102,7 +102,11 @@ const loadReports = async () => {
     const { data } = await api.get<PaginatedResponse<ExperimentReport>>('/scores/all-reports/', { params: { page: page.value } })
     reports.value = data.results || []
     totalCount.value = data.count || 0
-  } catch (e) { /* ignore */ }
+  } catch (e: any) {
+    toast(e.message || '加载报告失败', 'error')
+    reports.value = []
+    totalCount.value = 0
+  }
   finally { loading.value = false }
 }
 
@@ -111,9 +115,15 @@ const goPage = (value: number) => {
   loadReports()
 }
 
-onMounted(() => {
-  if (!localStorage.getItem('token')) {
-    router.push('/login')
+onMounted(async () => {
+  if (!userStore.token && !localStorage.getItem('token')) {
+    router.replace({ path: '/login', query: { redirect: '/teacher-reports' } })
+    return
+  }
+  if (!userStore.user) await userStore.fetchUser()
+  if (!hasAdminAccess(userStore.user)) {
+    toast('仅教师或管理员可管理学生报告', 'error')
+    router.replace('/')
     return
   }
   loadReports()
@@ -129,12 +139,12 @@ onMounted(() => {
   p { font-size: 13px; color: #999; }
 }
 
-.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;
+.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px;
   @media(max-width: 600px) { grid-template-columns: repeat(2, 1fr); }
   .stat-card { background: #fff; padding: 16px; border-radius: 10px; text-align: center;
     .num { font-size: 24px; font-weight: 700; }
     .label { font-size: 12px; color: #999; margin-top: 4px; }
-    &.c0 .num { color: #1a237e; } &.c1 .num { color: #e65100; } &.c2 .num { color: #2e7d32; } &.c3 .num { color: #c62828; }
+    &.c0 .num { color: #1a237e; } &.c1 .num { color: #e65100; } &.c2 .num { color: #2e7d32; }
   }
 }
 

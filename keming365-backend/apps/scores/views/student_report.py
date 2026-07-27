@@ -6,45 +6,22 @@ Student Report - 学生实验报告查询 API
 
 from django.db import connection
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-
-from apps.accounts.models import TbUser
-
-
-def _get_user_id(request):
-    uid = request.GET.get('userId')
-    if uid:
-        return uid
-    if request.method == 'POST':
-        try:
-            raw = request.read()
-            if raw:
-                import json
-                body = json.loads(raw)
-                uid = body.get('userId')
-                if uid:
-                    return uid
-        except Exception:
-            pass
-        uid = request.POST.get('userId')
-        if uid:
-            return uid
-    return None
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 
 
-@csrf_exempt
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def student_report_list(request):
     """
     GET/POST /api/v1/scores/student/reports/
     学生查看自己的实验报告列表
     对应 Java: sybg.jsp initReportInfo
     """
-    user_id = _get_user_id(request)
-    if not user_id:
-        return JsonResponse({'flag': 0, 'msg': '未登录', 'list': {'rows': [], 'pageInfo': {}}})
-
-    start_page = int(request.GET.get('startPage') or request.POST.get('startPage') or request.GET.get('page') or '1')
-    page_size = int(request.GET.get('PageSize') or request.POST.get('PageSize') or request.GET.get('page_size') or '10')
+    user_id = str(request.user.id)
+    params = request.query_params if request.method == 'GET' else request.data
+    start_page = max(int(params.get('startPage') or params.get('page') or '1'), 1)
+    page_size = min(max(int(params.get('PageSize') or params.get('page_size') or '10'), 1), 100)
     offset = (start_page - 1) * page_size
 
     with connection.cursor() as cur:

@@ -3,8 +3,10 @@
     <div class="container">
       <div class="breadcrumb">
         <router-link to="/">首页</router-link> &gt;
-        <router-link to="/teacher-reports">教师报告</router-link> &gt;
-        <span>评阅报告</span>
+        <router-link :to="canReview ? '/teacher-reports' : '/student-reports'">
+          {{ canReview ? '教师报告' : '我的报告' }}
+        </router-link> &gt;
+        <span>{{ canReview ? '评阅报告' : '查看报告' }}</span>
       </div>
 
       <div v-if="loading" class="loading">
@@ -24,30 +26,26 @@
 
         <div class="report-grid">
           <div class="main-content">
-            <div v-for="(sec, i) in sections" :key="i" class="section-block">
-              <h3>{{ sec.title }}</h3>
-              <div v-if="sec.type === 'score'">
-                <div class="big-score">{{ report.reportScore || '-' }}</div>
-                <p class="hint">满分100分</p>
-              </div>
-              <div v-else-if="sec.type === 'steps' && report.steps" class="steps-list">
-                <div v-for="(step, idx) in report.steps" :key="idx" class="step-item">
-                  <div class="step-num">{{ Number(idx) + 1 }}</div>
-                  <div class="step-content">
-                    <h4>{{ step.title || '步骤' }}</h4>
-                    <p>{{ step.content || '' }}</p>
-                  </div>
-                </div>
-              </div>
-              <div v-else class="text-content">{{ sec.getValue() }}</div>
+            <div class="section-block">
+              <h3>实验报告文件</h3>
+              <iframe
+                v-if="reportPreviewUrl"
+                class="report-frame"
+                :src="reportPreviewUrl"
+                title="实验报告预览"
+              />
+              <div v-else-if="fileLoading" class="file-empty">报告文件加载中...</div>
+              <div v-else class="file-empty">报告文件不可用</div>
+              <a v-if="reportPreviewUrl" class="open-file" :href="reportPreviewUrl" target="_blank" rel="noopener">
+                在新窗口打开报告
+              </a>
             </div>
 
-            <div class="action-bar">
-              <textarea v-model="teacherComment" placeholder="评阅意见..." class="comment-area"></textarea>
+            <div v-if="canReview" class="action-bar">
+              <h3>报告评分</h3>
               <div class="action-buttons">
                 <input v-model.number="newScore" type="number" min="0" max="100" class="score-input" placeholder="分数">
-                <button class="btn-pass" @click="submitReview(1)">✅ 通过</button>
-                <button class="btn-reject" @click="submitReview(0)">❌ 驳回</button>
+                <button class="btn-pass" @click="submitReview">保存评分</button>
               </div>
             </div>
           </div>
@@ -57,10 +55,12 @@
             <div class="info-card">
               <div class="info-row"><span>报告ID</span><b>{{ report.id }}</b></div>
               <div class="info-row"><span>学生</span><b>{{ report.studentName || '-' }}</b></div>
+              <div class="info-row"><span>班级</span><b>{{ report.className || '-' }}</b></div>
+              <div class="info-row"><span>课程</span><b>{{ report.curriculumName || '-' }}</b></div>
               <div class="info-row"><span>实验</span><b>{{ report.experimentName || '-' }}</b></div>
-              <div class="info-row"><span>用时</span><b>{{ report.totalTime || '-' }} 分钟</b></div>
               <div class="info-row"><span>提交时间</span><b>{{ formatDate(report.createTime || '') }}</b></div>
-              <div class="info-row"><span>得分</span><b class="big">{{ report.reportScore || '待评' }}</b></div>
+              <div class="info-row"><span>上传次数</span><b>{{ report.uploadNum || 0 }}</b></div>
+              <div class="info-row"><span>得分</span><b class="big">{{ report.status === 1 ? report.reportScore : '待评' }}</b></div>
             </div>
           </div>
         </div>
@@ -70,28 +70,44 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
-import { formatDate, toast } from '@/utils'
+import { formatDate, hasAdminAccess, toast } from '@/utils'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 const report = ref<any>(null)
 const loading = ref(true)
 const error = ref('')
-const teacherComment = ref('')
 const newScore = ref<number | null>(null)
+const fileLoading = ref(false)
+const reportPreviewUrl = ref('')
+const canReview = computed(() => hasAdminAccess(userStore.user))
 
-const sections = [
-  { title: '📊 报告得分', type: 'score', getValue: () => '' },
-  { title: '📝 实验总结', type: 'text', getValue: () => report.value?.summary || '未填写' },
-  { title: '🔬 操作步骤', type: 'steps', getValue: () => '' },
-  { title: '💭 心得体会', type: 'text', getValue: () => report.value?.reflection || '未填写' }
-]
+const clearReportPreview = () => {
+  if (reportPreviewUrl.value) URL.revokeObjectURL(reportPreviewUrl.value)
+  reportPreviewUrl.value = ''
+}
+
+const loadReportFile = async (fileUrl: string) => {
+  clearReportPreview()
+  if (!fileUrl) return
+  fileLoading.value = true
+  try {
+    const { data } = await api.get<Blob>(fileUrl, { responseType: 'blob' })
+    reportPreviewUrl.value = URL.createObjectURL(data)
+  } catch (e: any) {
+    toast(e.message || '报告文件加载失败', 'error')
+  } finally {
+    fileLoading.value = false
+  }
+}
 
 const loadReport = async () => {
-  const id = route.params.id as string
+  const id = (route.query.id || route.params.id) as string
   if (!id) { error.value = '缺少报告ID'; loading.value = false; return }
 
   loading.value = true
@@ -99,7 +115,9 @@ const loadReport = async () => {
   try {
     const { data } = await api.get(`/scores/reports/${id}/`)
     report.value = data
-    document.title = '评阅报告 - 科明365VR教学云平台'
+    newScore.value = data.status === 1 ? Number(data.reportScore) : null
+    await loadReportFile(data.fileUrl || '')
+    document.title = `${canReview.value ? '评阅' : '查看'}报告 - 科明365VR教学云平台`
   } catch (e: any) {
     error.value = e.message || '请求失败'
   } finally {
@@ -107,26 +125,42 @@ const loadReport = async () => {
   }
 }
 
-const submitReview = async (status: number) => {
+const submitReview = async () => {
   const token = localStorage.getItem('token')
   if (!token) {
     toast('请先登录', 'error')
     router.push('/login')
     return
   }
+  if (!canReview.value) {
+    toast('仅教师或管理员可批阅报告', 'error')
+    return
+  }
+  if (newScore.value == null || newScore.value < 0 || newScore.value > 100) {
+    toast('请输入0到100之间的分数', 'error')
+    return
+  }
   try {
     await api.post(`/scores/reports/${report.value.id}/review/`, {
-      status, comment: teacherComment.value, score: newScore.value
+      score: newScore.value
     })
-    toast(status === 1 ? '已通过' : '已驳回', 'success')
+    toast('评分已保存', 'success')
     router.push('/teacher-reports')
   } catch (e: any) {
     toast(e.message || '评阅失败', 'error')
   }
 }
 
-onMounted(loadReport)
-watch(() => route.params.id, loadReport)
+onMounted(async () => {
+  if (!userStore.token && !localStorage.getItem('token')) {
+    router.replace({ path: '/login', query: { redirect: route.fullPath } })
+    return
+  }
+  if (!userStore.user) await userStore.fetchUser()
+  loadReport()
+})
+watch(() => route.query.id || route.params.id, loadReport)
+onBeforeUnmount(clearReportPreview)
 </script>
 
 <style lang="scss" scoped>
@@ -152,24 +186,16 @@ watch(() => route.params.id, loadReport)
 .main-content { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 .section-block { margin-bottom: 24px; padding-bottom: 24px; border-bottom: 1px solid #eef0f4; &:last-child { border-bottom: none; }
   h3 { font-size: 17px; color: #1a237e; margin-bottom: 12px; }
-  .text-content { font-size: 14px; color: #555; line-height: 1.8; }
-  .big-score { font-size: 60px; font-weight: 700; color: #1a237e; text-align: center; padding: 20px; }
-  .hint { text-align: center; font-size: 13px; color: #999; }
-  .steps-list .step-item { display: flex; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f5f5f5;
-    .step-num { width: 32px; height: 32px; border-radius: 50%; background: #e8eaf6; color: #1a237e; display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0; }
-    .step-content { flex: 1; h4 { font-size: 14px; margin-bottom: 4px; } p { font-size: 13px; color: #666; line-height: 1.6; } }
-  }
 }
+.report-frame { width: 100%; min-height: 680px; border: 1px solid #dfe4ed; background: #f7f8fa; }
+.file-empty { padding: 80px 20px; color: #999; text-align: center; background: #f7f8fa; }
+.open-file { display: inline-block; margin-top: 12px; color: #1a237e; font-size: 13px; }
 
 .action-bar { background: #fafbff; padding: 16px; border-radius: 8px; margin-top: 16px;
-  .comment-area { width: 100%; min-height: 80px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; outline: none;
-    &:focus { border-color: #1a237e; }
-  }
-  .action-buttons { display: flex; gap: 8px; margin-top: 12px;
+  h3 { margin: 0 0 12px; color: #1a237e; font-size: 16px; }
+  .action-buttons { display: flex; gap: 8px;
     .score-input { padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; width: 80px; }
-    .btn-pass, .btn-reject { padding: 8px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; color: #fff; }
-    .btn-pass { background: #67c23a; }
-    .btn-reject { background: #e53935; margin-left: auto; }
+    .btn-pass { padding: 8px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; color: #fff; background: #67c23a; }
   }
 }
 

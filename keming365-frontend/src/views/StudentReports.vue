@@ -21,9 +21,8 @@
         <input v-model="search" placeholder="搜索报告..." class="search-input" />
         <select v-model="filterStatus" class="filter-select">
           <option value="all">全部状态</option>
-          <option value="1">已通过</option>
+          <option value="1">已评分</option>
           <option value="0">待评阅</option>
-          <option value="-1">已驳回</option>
         </select>
       </div>
 
@@ -53,12 +52,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '@/api'
 import type { ExperimentReport, PaginatedResponse } from '@/types'
 import { useUserStore } from '@/stores/user'
 import Pagination from '@/components/Pagination.vue'
+import { toast } from '@/utils'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -70,7 +70,7 @@ const filterStatus = ref('all')
 const page = ref(1)
 const totalCount = ref(0)
 
-const statusLabel: Record<number, string> = { 1: '✅ 已通过', 0: '⏳ 待评阅', '-1': '❌ 已驳回' }
+const statusLabel: Record<number, string> = { 1: '已评分', 0: '待评阅' }
 const stats = computed(() => {
   const total = reports.value.length
   const passed = reports.value.filter(r => r.status === 1).length
@@ -94,7 +94,7 @@ const filteredReports = computed(() => {
   return result
 })
 
-const statusClass = (s: number) => s === 1 ? 'pass' : s === 0 ? 'pending' : 'reject'
+const statusClass = (s: number) => s === 1 ? 'pass' : 'pending'
 
 const goReport = (r: ExperimentReport) => {
   router.push({ path: '/review-report', query: { id: String(r.id) } })
@@ -106,7 +106,11 @@ const loadReports = async () => {
     const { data } = await api.get<PaginatedResponse<ExperimentReport>>('/scores/my-reports/', { params: { page: page.value } })
     reports.value = data.results || []
     totalCount.value = data.count || 0
-  } catch (e) { /* ignore */ }
+  } catch (e: any) {
+    toast(e.message || '加载报告失败', 'error')
+    reports.value = []
+    totalCount.value = 0
+  }
   finally { loading.value = false }
 }
 
@@ -115,9 +119,15 @@ const goPage = (value: number) => {
   loadReports()
 }
 
-onMounted(() => {
+onMounted(async () => {
   if (!userStore.token && !localStorage.getItem('token')) {
-    router.push('/login')
+    router.replace({ path: '/login', query: { redirect: '/student-reports' } })
+    return
+  }
+  if (!userStore.user) await userStore.fetchUser()
+  if (userStore.user?.type !== 2) {
+    toast('仅学生账号可查看我的报告', 'error')
+    router.replace('/')
     return
   }
   loadReports()
