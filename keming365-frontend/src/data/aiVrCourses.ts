@@ -54,6 +54,7 @@ const C = (title: string, children: AiVrSection[], defaultOpen = false): AiVrCha
   ({ title, children, defaultOpen: defaultOpen || undefined })
 
 const HUAFA_VIDEO_BASE = 'https://oss.keming365.com/365/AI%2BVR%E6%99%BA%E8%83%BD%E4%BD%93/video/%E5%90%8E%E6%9C%9F%E5%BD%95%E5%88%B6%E5%AE%8C%E7%9A%84ppt%E8%AE%B2%E8%A7%A3%E8%A7%86%E9%A2%91/'
+const HUAFA_EXTENDED_VIDEO_BASE = 'https://oss.keming365.com/365/AI%2BVR%E6%99%BA%E8%83%BD%E4%BD%93/video/%E7%94%BB%E6%B3%95%E5%87%A0%E4%BD%95%E8%A7%86%E9%A2%91/'
 const huafaVideoFiles: Record<string, string> = {
   '1.1 技术制图国家标准的一般规定': '1.1 技术制图国家标准的一般规定_x264.mp4',
   '1.2 绘图工具的使用方法': '1.2 绘图工具的使用方法_batch.mp4',
@@ -93,6 +94,19 @@ const huafaVideoFiles: Record<string, string> = {
   '9.3 常见典型零件': '9.3 常见典型零件分析_batch.mp4',
   '9.4 零件上常见结构及尺寸标柱': '9.4零件上常见结构及尺寸标注_batch.mp4'
 }
+const huafaExtendedVideoFiles: Record<string, string> = {
+  '9.5 读零件图': '9.5 读零件图_batch.mp4',
+  '9.6 零件的测绘': '9.6 零件的测绘_batch.mp4',
+  '10.1 表面结构': '10.1 表面结构_batch.mp4',
+  '10.2 极限与配合的基本概念及标注': '10.2极限与配合的基本概念及标注_batch.mp4',
+  '10.3 几何公差的基本概念及标注': '10.3 几何公差的基本概念及标注_batch.mp4',
+  '11.1 装配图基本概念': '11.1装配图的基本概念_batch.mp4',
+  '11.2 装配图表达方法': '11.2装配图的表达方法_batch.mp4',
+  '11.3 画装配图的方法和步骤': '11.3 画装配图的方法和步骤_batch.mp4',
+  '11.4 装配图的尺寸标注和技术要求': '11.4 装配图的尺寸标注和技术要求_batch.mp4',
+  '11.5 装配图中的序号、明细栏和标题栏': '11.5装配图中的序号、明细栏和标题栏_batch.mp4',
+  '11.6 常见装配结构简介': '11.6 常见装配结构简介_batch.mp4'
+}
 
 export const aiVrCourseData: Record<string, AiVrCourse> = {
   '画法几何与机械制图': {
@@ -104,7 +118,7 @@ export const aiVrCourseData: Record<string, AiVrCourse> = {
     },
     chapters: [
       C('1.制图的基础知识与技能', [S('1.1 技术制图国家标准的一般规定'),S('1.2 绘图工具的使用方法'),S('1.3 几何作图'),S('1.4 平面图形分析及画法')]),
-      C('2.正投影基础', [S('2.1 投影的基础知识'),S('2.2 三视图的形成和投影规律','https://www.keming365.com/file/PPT/2.2 三视图.pptx','https://www.keming365.com/upload/qypt/node/video/三视图的形成.mp4','https://yq.keming365.com/webclient/?appliId=834070253582417920;https://yq.keming365.com/webclient/?appliId=834070376249032704;https://yq.keming365.com/webclient/?appliId=722476178471911424',true),S('2.3 点的投影'),S('2.4 直线的投影'),S('2.5 平面的投影'),S('2.6 各种几何元素之间的相互位置'),S('2.7 换面法')], true),
+      C('2.正投影基础', [S('2.1 投影的基础知识'),S('2.2 三视图的形成和投影规律','https://www.keming365.com/file/PPT/2.2 三视图.pptx','https://www.keming365.com/upload/qypt/node/video/三视图的形成.mp4','https://yq.keming365.com/webclient/?appliId=834070253582417920;https://yq.keming365.com/webclient/?appliId=834070376249032704;https://yq.keming365.com/webclient/?appliId=722476178471911424'),S('2.3 点的投影'),S('2.4 直线的投影'),S('2.5 平面的投影'),S('2.6 各种几何元素之间的相互位置'),S('2.7 换面法')]),
       C('3.基本立体的视图', [S('3.1 平面立体'),S('3.2 曲面立体')]),
       C('4.截交线和相贯线', [S('4.1 截交线'),S('4.2 相贯线')]),
       C('5.组合体', [S('5.1 组合体形体分析'),S('5.2 组合体画图方法'),S('5.3 组合体视图的尺寸注法'),S('5.4 组合体读图')]),
@@ -125,14 +139,18 @@ export const aiVrCourseData: Record<string, AiVrCourse> = {
     },
     chapters: [
       C('1.绪论', [S('1.1 液压传动的发展'),S('1.2 液压传动的工作原理及液压传动系统的组成'),S('1.3 液压元件的图形符号'),S('1.4 液压传动的优缺点及应用')]),
-      C('2.液压油与液压流体力学基础', [S('2.1 液体的物理性质'),S('2.2 液体静力学基础'),S('2.3 液体动力学基础'),S('2.4 管路内压力损失计算'),S('2.5 液体流经小孔和间隙的流量'),S('2.6 液压冲击和气穴现象')]),
-      C('3.液压泵与液压马达', [S('3.1 液压泵概述'),S('3.2 齿轮泵'),S('3.3 叶片泵','https://www.keming365.com/file/PPT/3.3叶片泵.pptx','https://www.keming365.com/upload/qypt/node/video/叶片泵.mp4','',true),S('3.4 柱塞泵'),S('3.5 液压马达')], true),
-      C('4.液压缸', [S('4.1 液压缸的分类和特点'),S('4.2 液压缸的结构设计'),S('4.3 液压缸的设计计算')]),
-      C('5.液压控制阀', [S('5.1 方向控制阀'),S('5.2 压力控制阀'),S('5.3 流量控制阀'),S('5.4 叠加阀和插装阀')]),
-      C('6.液压辅助元件', [S('6.1 蓄能器'),S('6.2 过滤器'),S('6.3 油箱及热交换器'),S('6.4 油管及管接头'),S('6.5 密封装置')]),
-      C('7.液压基本回路', [S('7.1 方向控制回路'),S('7.2 压力控制回路'),S('7.3 速度控制回路'),S('7.4 多缸工作控制回路')]),
-      C('8.典型液压系统', [S('8.1 组合机床动力滑台液压系统'),S('8.2 万能外圆磨床液压系统'),S('8.3 压力机液压系统')]),
-      C('9.气压传动', [S('9.1 气压传动基础知识'),S('9.2 气源装置及气动辅助元件'),S('9.3 气动执行元件'),S('9.4 气动控制元件'),S('9.5 气动基本回路'),S('9.6 气动系统实例')])
+      C('2.液压油与液压流体力学基础', [S('2.1 液体的物理性质'),S('2.2 液体静力学基础'),S('2.3 液体动力学基础'),S('2.4 液体流动时的压力损失'),S('2.5 液体流过小孔和缝隙的流量'),S('2.6 液压冲击和气穴现象')]),
+      C('3.液压泵与液压马达', [S('3.1 概述'),S('3.2 齿轮泵'),S('3.3 叶片泵','https://www.keming365.com/file/PPT/3.3叶片泵.pptx','https://www.keming365.com/upload/qypt/node/video/叶片泵.mp4'),S('3.4 柱塞泵'),S('3.5 各类液压泵的性能比较及应用'),S('3.6 液压马达')]),
+      C('4.液压缸', [S('4.1 液压缸的工作原理、类型和特点'),S('4.2 液压缸基本参数的计算'),S('4.3 液压缸的典型结构'),S('4.4 液压缸的设计')]),
+      C('5.液压控制阀', [S('5.1 概述'),S('5.2 方向控制阀'),S('5.3 压力控制阀'),S('5.4 流量控制阀'),S('5.5 电液比例阀和伺服阀'),S('5.6 插装阀及叠加阀')]),
+      C('6.辅助装置', [S('6.1 过滤器'),S('6.2 蓄能器'),S('6.3 油箱'),S('6.4 热交换器'),S('6.5 连接件'),S('6.6 密封装置')]),
+      C('7. 液压基本回路', [S('7.1 压力控制回路'),S('7.2 速度控制回路'),S('7.3 方向控制回路'),S('7.4 多缸动作回路')]),
+      C('8.典型液压系统', [S('8.1 液压系统图的阅读和分析方法'),S('8.2 YT4543型动力滑台液压系统'),S('8.3 MLS₃-170型采煤机及其液压牵引系统'),S('8.4 Q2-8型汽车起重机液压系统'),S('8.5 YB32-200型压力机的液压系统'),S('8.6 XS-ZY-250A型注塑机比例液压系统'),S('8.7 盘式热分散机比例压力和流量复合控制液压系统'),S('8.8 XLB1800×10000平板硫化机的液压系统')]),
+      C('9.液压系统的设计与计算', [S('9.1 液压系统的设计步骤和方法'),S('9.2 液压系统设计计算举例')]),
+      C('10.液压伺服系统', [S('10.1 概述'),S('10.2 典型的液压伺服控制元件'),S('10.3 电液伺服阀'),S('10.4 液压伺服系统实例')]),
+      C('11.液压伺服系统', [S('11.1 气压传动基本知识'),S('11.2 气源装置及辅助元件'),S('11.3 气动执行元件'),S('11.4 气动控制元件'),S('11.5 气动基本回路'),S('11.6 气动系统实例'),S('11.7 气动系统的设计')]),
+      C('12.液压伺服系统', [S('12.1 液压系统的安装'),S('12.2 液压系统的调试'),S('12.3 液压系统的使用、维护和保养'),S('12.4 气动系统的安装调试与使用维护')]),
+      C('13.液压系统的故障诊断', [S('13.1 液压系统的故障原因分析'),S('13.2 液压系统的故障特征与诊断步骤'),S('13.3 液压系统的故障诊断方法'),S('13.4 150kN电镗机液压系统的故障诊断实例')])
     ]
   },
   '工程训练': {
@@ -144,7 +162,7 @@ export const aiVrCourseData: Record<string, AiVrCourse> = {
     },
     chapters: [
       C('1.工程材料基础知识', [S('1.1 工程材料的分类'),S('1.2 金属材料'),S('1.3 非金属材料'),S('1.4 复合材料')]),
-      C('2.铸造', [S('2.1 型砂和芯砂'),S('2.2 常用的造型方法','https://www.keming365.com/file/PPT/2.2常用造型方法.pptx','https://www.keming365.com/upload/qypt/node/video/铸造.mp4','https://yq.keming365.com/webclient/?appliId=1458475953117200384;https://yq.keming365.com/webclient/?appliId=1458475955033997312;https://yq.keming365.com/webclient/?appliId=1458475950038581248;https://yq.keming365.com/webclient/?appliId=1458475968803897344;https://yq.keming365.com/webclient/?appliId=1458475972192894976;https://yq.keming365.com/webclient/?appliId=1458475915620122624;https://yq.keming365.com/webclient/?appliId=1458475988752007168;https://yq.keming365.com/webclient/?appliId=1458475981906903040',true),S('2.3 合金的熔炼'),S('2.4 铸件的浇筑、落砂、清理及缺陷分析')], true),
+      C('2.铸造', [S('2.1 型砂和芯砂'),S('2.2 常用的造型方法','https://www.keming365.com/file/PPT/2.2常用造型方法.pptx','https://www.keming365.com/upload/qypt/node/video/铸造.mp4','https://yq.keming365.com/webclient/?appliId=1458475953117200384;https://yq.keming365.com/webclient/?appliId=1458475955033997312;https://yq.keming365.com/webclient/?appliId=1458475950038581248;https://yq.keming365.com/webclient/?appliId=1458475968803897344;https://yq.keming365.com/webclient/?appliId=1458475972192894976;https://yq.keming365.com/webclient/?appliId=1458475915620122624;https://yq.keming365.com/webclient/?appliId=1458475988752007168;https://yq.keming365.com/webclient/?appliId=1458475981906903040'),S('2.3 合金的熔炼'),S('2.4 铸件的浇筑、落砂、清理及缺陷分析')]),
       C('3.锻压', [S('3.1 金属加热与锻件冷却'),S('3.2 自由锻造'),S('3.3 模型锻造'),S('3.4 板料冲压')]),
       C('4.焊接', [S('4.1 焊条电弧焊'),S('4.2 气焊与气割'),S('4.3 其他焊接方法'),S('4.4 常见焊接缺陷及其检验方法')]),
       C('5.金属热处理', [S('5.1 钢的热处理工艺'),S('5.2 常用热处理设备'),S('5.3 热处理常见缺陷'),S('5.4 常用硬度测试')]),
@@ -163,7 +181,9 @@ export const aiVrCourseData: Record<string, AiVrCourse> = {
 for (const chapter of aiVrCourseData['画法几何与机械制图'].chapters) {
   for (const section of chapter.children) {
     const filename = huafaVideoFiles[section.title]
+    const extendedFilename = huafaExtendedVideoFiles[section.title]
     if (filename) section.videoUrl = HUAFA_VIDEO_BASE + encodeURIComponent(filename)
+    else if (extendedFilename) section.videoUrl = HUAFA_EXTENDED_VIDEO_BASE + encodeURIComponent(extendedFilename)
   }
 }
 
