@@ -45,7 +45,8 @@ EXPOSE 8000
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
-# 使用 gunicorn 启动
+# Use Gunicorn for the public HTTP API. WebSocket routes remain disabled until
+# their consumers enforce authentication and per-user authorization.
 CMD ["gunicorn", "config.wsgi:application", \
      "--bind", "0.0.0.0:8000", \
      "--workers", "4", \

@@ -1,0 +1,18 @@
+{
+    email {$ACME_EMAIL}
+}
+
+# PUBLIC_DOMAINS accepts one or more comma-separated DNS names. Caddy redirects
+# HTTP to HTTPS and manages certificate issuance and renewal automatically.
+{$PUBLIC_DOMAINS} {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    reverse_proxy frontend:80
+}
