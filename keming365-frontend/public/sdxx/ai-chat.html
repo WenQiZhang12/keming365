@@ -203,6 +203,62 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   var promptSuggestions = document.getElementById('promptSuggestions');
   var isSending = false;
 
+  // Keep hidden model reasoning out of the user-visible chat bubble. Different
+  // providers use different tags, so handle both XML-like and token markers.
+  function stripModelReasoning(value) {
+    if (typeof value !== 'string') return '';
+
+    var text = value.replace(/\r\n/g, '\n');
+    text = text.replace(/<\s*(?:think|thinking|analysis|reasoning)\b[^>]*>[\s\S]*?<\s*\/\s*(?:think|thinking|analysis|reasoning)\s*>/gi, '');
+    text = text.replace(/<\|\s*(?:think|thinking|analysis|reasoning)\s*\|>[\s\S]*?<\|\s*end(?:of)?(?:think|thinking|analysis|reasoning)\s*\|>/gi, '');
+    text = text.replace(/```\s*(?:think|thinking|analysis|reasoning)\b[\s\S]*?```/gi, '');
+
+    // If a provider omits the closing tag, keep only the section after its
+    // explicit final-answer marker.
+    var finalMarker = text.search(/(?:^|\n)\s*(?:#{1,6}\s*)?(?:final\s+answer|answer|最终答案|最终回答|回答)\s*[:：]?\s*/i);
+    if (finalMarker >= 0) {
+      text = text.slice(finalMarker).replace(/^\s*(?:#{1,6}\s*)?(?:final\s+answer|answer|最终答案|最终回答|回答)\s*[:：]?\s*/i, '');
+    } else {
+      // Never expose an unfinished reasoning block when the provider omits
+      // both its closing marker and a final-answer label.
+      text = text.replace(/<\s*(?:think|thinking|analysis|reasoning)\b[^>]*>[\s\S]*$/gi, '');
+      text = text.replace(/<\|\s*(?:think|thinking|analysis|reasoning)\s*\|>[\s\S]*$/gi, '');
+    }
+
+    return text.trim();
+  }
+
+  function finalAnswerFromPayload(payload) {
+    if (typeof payload === 'string') return stripModelReasoning(payload);
+    if (!payload || typeof payload !== 'object') return '';
+
+    var choices = Array.isArray(payload.choices) ? payload.choices[0] : null;
+    var message = choices && choices.message ? choices.message : null;
+    var delta = choices && choices.delta ? choices.delta : null;
+    var candidates = [
+      payload.final,
+      payload.finalAnswer,
+      payload.answer,
+      payload.content,
+      payload.output,
+      payload.output_text,
+      payload.data && payload.data.final,
+      payload.data && payload.data.answer,
+      payload.data && payload.data.content,
+      payload.result && payload.result.final,
+      payload.result && payload.result.answer,
+      payload.result && payload.result.content,
+      message && message.content,
+      delta && delta.content,
+    ];
+
+    for (var i = 0; i < candidates.length; i += 1) {
+      var answer = stripModelReasoning(candidates[i]);
+      if (answer) return answer;
+    }
+    return '';
+  }
+
   // ========== 自动调整输入框高度 ==========
   chatInput.addEventListener('input', function() {
     this.style.height = 'auto';
@@ -279,8 +335,8 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
         // 处理聊天回复（SSE解析后已是JSON对象）
         var chatContent = '';
         try {
-          chatContent = chatResult.content || chatResult.answer || '';
-          if (!chatContent && typeof chatResult === 'string') chatContent = chatResult;
+          chatContent = finalAnswerFromPayload(chatResult);
+          if (!chatContent) chatContent = '抱歉，暂时没有生成最终回答。';
           // 修复：将字面量 \n 转换为实际换行符
           if (typeof chatContent === 'string') {
             chatContent = chatContent.replace(/\\n/g, '\n');
@@ -477,7 +533,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-sy
   // ========== 打字机效果 ==========
   function typewriterRender(element, text, callback) {
     // 确保换行符正确
-    text = text.replace(/\\n/g, '\n');
+    text = stripModelReasoning(text).replace(/\\n/g, '\n');
     var html = renderMarkdown(text);
     var totalLen = html.length;
     var speed = totalLen > 2000 ? 5 : 3;
