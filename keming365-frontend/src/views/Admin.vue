@@ -23,8 +23,8 @@
 
       <section v-if="activeTab === 'users'" class="panel">
         <div class="toolbar">
-          <input v-model="userSearch" class="field" placeholder="搜索用户名、姓名、手机号" @input="loadUsers" />
-          <select v-model="userFilter" class="field compact" @change="loadUsers">
+          <input v-model="userSearch" class="field" placeholder="搜索用户名、姓名、手机号" @input="refreshUsers" />
+          <select v-model="userFilter" class="field compact" @change="refreshUsers">
             <option value="">全部用户</option>
             <option value="2">学生</option>
             <option value="1">教师</option>
@@ -276,8 +276,19 @@ async function loadUsers() {
     users.value = data.results || []
     userTotal.value = data.count || 0
   } catch (error: any) {
+    if (userPage.value > 1) {
+      userPage.value = 1
+      return loadUsers()
+    }
+    users.value = []
+    userTotal.value = 0
     toast(error.message || '加载用户失败', 'error')
   }
+}
+
+function refreshUsers() {
+  userPage.value = 1
+  loadUsers()
 }
 
 function goUserPage(value: number) {

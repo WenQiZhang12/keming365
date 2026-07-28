@@ -1,6 +1,11 @@
 <template>
-    <aside class="floating-tools" aria-label="客服工具">
-      <div class="tool-item tool-qq" tabindex="0">
+    <aside
+      class="floating-tools"
+      :class="{ 'popovers-hidden': popoversHidden }"
+      aria-label="客服工具"
+      @pointermove="restorePopovers"
+    >
+      <div class="tool-item tool-qq" :class="{ active: activePopover === 'qq' }" tabindex="0" @click="activatePopover('qq')" @pointerenter="activatePopover('qq')" @pointerleave="deactivatePopover" @focusin="activatePopover('qq')">
         <div class="tool-icon"><MessageCircleMore :size="27" stroke-width="1.7" /></div>
         <span>QQ咨询</span>
         <div class="tool-popover qq-popover">
@@ -11,7 +16,7 @@
         </div>
       </div>
 
-      <div class="tool-item tool-wechat" tabindex="0">
+      <div class="tool-item tool-wechat" :class="{ active: activePopover === 'wechat' }" tabindex="0" @click="activatePopover('wechat')" @pointerenter="activatePopover('wechat')" @pointerleave="deactivatePopover" @focusin="activatePopover('wechat')">
         <div class="tool-icon"><QrCode :size="27" stroke-width="1.7" /></div>
         <span>官方微信</span>
         <div class="tool-popover qr-popover">
@@ -22,7 +27,7 @@
         </div>
       </div>
 
-      <div class="tool-item tool-phone" tabindex="0">
+      <div class="tool-item tool-phone" :class="{ active: activePopover === 'phone' }" tabindex="0" @click="activatePopover('phone')" @pointerenter="activatePopover('phone')" @pointerleave="deactivatePopover" @focusin="activatePopover('phone')">
         <div class="tool-icon"><PhoneCall :size="27" stroke-width="1.7" /></div>
         <span>联系电话</span>
         <div class="tool-popover phone-popover">
@@ -31,7 +36,7 @@
         </div>
       </div>
 
-      <button type="button" class="tool-item tool-top" @click="scrollTop">
+      <button type="button" class="tool-item tool-top" @click="deactivatePopover(); scrollTop()">
         <div class="tool-icon"><ChevronUp :size="28" stroke-width="1.8" /></div>
         <span>返回顶部</span>
       </button>
@@ -67,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Bot, ChevronUp, MessageCircleMore, PhoneCall, QrCode, X } from '@lucide/vue'
 import { useUserStore } from '@/stores/user'
@@ -76,6 +81,8 @@ const userStore = useUserStore()
 const router = useRouter()
 const showChat = ref(false)
 const showAiTooltip = ref(true)
+const popoversHidden = ref(false)
+const activePopover = ref<string | null>(null)
 const qqAgents = [
   { name: '客服一', number: '1378831402' },
   { name: '客服二', number: '1478598110' },
@@ -88,6 +95,28 @@ const aiUrl = computed(() => {
 })
 
 const toggleChat = () => { showChat.value = !showChat.value }
+const restorePopovers = () => { popoversHidden.value = false }
+const activatePopover = (name: string) => {
+  popoversHidden.value = false
+  activePopover.value = name
+}
+const deactivatePopover = (event?: PointerEvent) => {
+  if (event && event.pointerType !== 'mouse') return
+  activePopover.value = null
+  popoversHidden.value = false
+}
+const hidePopoversOnScroll = () => {
+  popoversHidden.value = true
+  activePopover.value = null
+  const activeElement = document.activeElement
+  if (activeElement instanceof HTMLElement) activeElement.blur()
+}
+const handleDocumentPointerDown = (event: PointerEvent) => {
+  const target = event.target
+  if (!(target instanceof Node) || !document.querySelector('.floating-tools')?.contains(target)) {
+    deactivatePopover()
+  }
+}
 const goLogin = () => {
   showChat.value = false
   router.push({ path: '/login', query: { redirect: '/' } })
@@ -96,6 +125,15 @@ const openQq = (number: string) => {
   window.open(`https://wpa.qq.com/msgrd?v=3&uin=${number}&site=qq&menu=yes`, '_blank', 'noopener,noreferrer')
 }
 const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+
+onMounted(() => {
+  window.addEventListener('scroll', hidePopoversOnScroll, { passive: true })
+  document.addEventListener('pointerdown', handleDocumentPointerDown)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', hidePopoversOnScroll)
+  document.removeEventListener('pointerdown', handleDocumentPointerDown)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -145,7 +183,10 @@ const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
   box-shadow: 0 3px 14px rgba(31, 80, 137, .12);
   animation: pop-in .18s ease-out;
 }
-.tool-item:hover .tool-popover, .tool-item:focus-within .tool-popover { display: block; }
+.tool-item.active .tool-popover { display: block; }
+.tool-phone.active .phone-popover { display: flex; }
+.tool-item.active { color: #fff; background: #00a1ea; outline: none; }
+.floating-tools.popovers-hidden .tool-popover { display: none !important; }
 .qq-popover { width: 240px; background: #78b6f5; color: #fff; }
 .qq-agent {
   width: 100%;
@@ -172,7 +213,6 @@ const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 .qr-image-viewport img { width: 231px; height: 129px; max-width: none; display: block; transform: translateX(-115px); }
 .qr-popover small { font-size: 12px; }
 .phone-popover { width: 240px; height: 79px; box-sizing: border-box; padding: 0 23px; display: none; align-items: center; gap: 22px; color: #fff; background: #78b6f5; font-size: 18px; }
-.tool-phone:hover .phone-popover, .tool-phone:focus-within .phone-popover { display: flex; }
 .phone-popover span { display: flex; flex-direction: column; gap: 3px; white-space: nowrap; }
 @keyframes pop-in { from { opacity: 0; transform: translateX(6px); } to { opacity: 1; transform: translateX(0); } }
 .ai-ball {
@@ -275,18 +315,66 @@ const scrollTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
 .ai-login-panel button { height: 40px; padding: 0 24px; border: 0; border-radius: 6px; color: #fff; background: #1677ff; font: inherit; cursor: pointer; }
 .ai-login-panel button:hover { background: #0968e8; }
 @media (max-width: 768px) {
-  .floating-tools { width: 58px; }
-  .tool-item { width: 58px; height: 66px; font-size: 11px; }
+  .floating-tools {
+    position: relative;
+    top: auto;
+    right: auto;
+    width: 100%;
+    transform: none;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-width: 1px 0;
+    box-shadow: none;
+  }
+  .tool-item {
+    width: 100%;
+    height: 66px;
+    border-right: 1px solid #e0e0e0;
+    border-bottom: 0;
+    font-size: 11px;
+  }
+  .tool-item:last-child { border-right: 0; }
   .tool-icon { height: 24px; }
   .tool-icon svg { width: 22px; height: 22px; }
-  .tool-popover { right: 57px; }
+  .tool-popover {
+    top: calc(100% + 1px);
+    right: auto;
+    bottom: auto;
+    animation: mobile-pop-in .18s ease-out;
+  }
   .qq-popover { width: 205px; }
+  .tool-qq .tool-popover { left: 0; }
   .qr-popover { width: 190px; min-height: 190px; padding-top: 18px; }
+  .tool-wechat .tool-popover { left: 50%; transform: translateX(-50%); }
   .phone-popover { width: 205px; height: 66px; font-size: 15px; }
-  .ai-ball { right: 76px; bottom: 18px; width: 56px; height: 56px; font-size: 17px; }
-  .ai-tooltip { right: -72px; max-width: 220px; font-size: 12px; }
-  .ai-dialog { right: 8px; bottom: 84px; width: calc(100vw - 16px); height: min(600px, calc(100vh - 120px)); }
+  .tool-phone .tool-popover { right: 0; }
+  .ai-ball {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    height: 52px;
+    border-radius: 0;
+    flex-direction: row;
+    gap: 6px;
+    box-shadow: none;
+    font-size: 16px;
+    animation: none;
+  }
+  .ai-tooltip { display: none; }
+  .ai-dialog {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(8px, env(safe-area-inset-right));
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: max(8px, env(safe-area-inset-left));
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom)));
+    box-sizing: border-box;
+  }
 }
+@keyframes mobile-pop-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
   .ai-ball { animation: none; }
 }

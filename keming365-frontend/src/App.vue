@@ -13,8 +13,8 @@ const route = useRoute()
     <main class="main-content">
       <router-view />
     </main>
-    <Footer />
     <FloatingTools v-if="route.path === '/'" />
+    <Footer />
   </template>
   <router-view v-else />
 </template>

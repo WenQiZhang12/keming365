@@ -224,7 +224,15 @@ onMounted(async () => {
   .study-page { padding: 16px 0 40px; }
   .study-shell { width: calc(100% - 20px); padding: 14px 12px 80px; }
   .toolbar { align-items: stretch; flex-direction: column; }
-  .toolbar label, .toolbar select, .query-btn { width: 100% !important; }
+  .toolbar label {
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+  .toolbar label > span { white-space: nowrap; }
+  .toolbar select { width: 100% !important; min-width: 0; }
+  .query-btn { width: 100% !important; }
   .score-table th, .score-table td { font-size: 13px; padding: 0 6px; }
   .footer-row { flex-wrap: wrap; }
   .pager { position: static; order: 3; width: 100%; transform: none; }
