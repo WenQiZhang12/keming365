@@ -17,6 +17,8 @@ from django.conf import settings
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 import requests
 
 from rest_framework import generics, status
@@ -463,6 +465,31 @@ class FilePreviewView(APIView):
                 open(str(ppt_path), 'rb'),
                 content_type='application/vnd.openxmlformats-officedocument.presentationml.presentation',
             )
+
+
+@method_decorator(xframe_options_sameorigin, name='dispatch')
+class PdfInlinePreviewView(APIView):
+    """Return an uploaded PDF as a complete, same-origin inline document."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, file_path, *args, **kwargs):
+        # Resolve against uploads/ and reject traversal or files outside MEDIA_ROOT.
+        requested_path = Path(unquote(file_path))
+        relative_path = requested_path.as_posix()
+        if requested_path.is_absolute() or '..' in requested_path.parts:
+            raise Http404('Invalid file path')
+
+        uploads_root = (settings.MEDIA_ROOT / 'uploads').resolve()
+        full_path = (uploads_root / relative_path).resolve()
+        if uploads_root not in full_path.parents or not full_path.is_file():
+            raise Http404('File not found')
+        if full_path.suffix.lower() != '.pdf':
+            raise Http404('Only PDF files can be previewed inline')
+
+        response = FileResponse(open(full_path, 'rb'), content_type='application/pdf')
+        response['Content-Disposition'] = 'inline'
+        return response
 
 
 @api_view(['GET'])

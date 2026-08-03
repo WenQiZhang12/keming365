@@ -467,7 +467,7 @@ function resolvePreviewUrl(url: string, type: ResourceType) {
 
 function resolvePptPreviewUrl(url: string, sectionTitle: string) {
   if (!url) return legacyHuafaPptName(sectionTitle) ? pptOssPreviewUrl('', sectionTitle) : ''
-  if (/\.pdf(?:[?#]|$)/i.test(url)) return url
+  if (/\.pdf(?:[?#]|$)/i.test(url)) return localUploadPdfPreviewUrl(url) || url
   if (/^https?:\/\//i.test(url)) return pptOssPreviewUrl(url, sectionTitle)
   return localUploadPreviewUrl(url) || pptOssPreviewUrl(url, sectionTitle)
 }
@@ -600,6 +600,14 @@ function localUploadPreviewUrl(url: string) {
   if (index < 0) return ''
   const relativePath = url.slice(index + marker.length)
   return `/api/v1/files/preview/${relativePath}`
+}
+
+function localUploadPdfPreviewUrl(url: string) {
+  const marker = '/media/uploads/'
+  const index = url.indexOf(marker)
+  if (index < 0) return ''
+  const relativePath = url.slice(index + marker.length)
+  return `/api/v1/files/pdf-inline/${relativePath}`
 }
 
 onMounted(() => {
