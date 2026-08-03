@@ -1,7 +1,7 @@
 <template>
   <div class="digital-textbooks-page">
     <section class="textbook-banner" aria-label="数字教材">
-      <img src="/images/szjc/13数字教材banner.png" alt="数字教材" />
+      <img :src="textbookBannerUrl" alt="数字教材" />
     </section>
 
     <section class="textbook-content">
@@ -18,7 +18,7 @@
         >
           <div class="cover-wrap">
             <img class="textbook-cover" :src="book.cover" :alt="book.title" />
-            <img class="textbook-badge" src="/images/szjc/数字教材标签.png" alt="数字教材" />
+            <img class="textbook-badge" :src="textbookBadgeUrl" alt="数字教材" />
           </div>
           <div class="textbook-info">
             <h2>{{ book.title }}</h2>
@@ -31,23 +31,32 @@
 </template>
 
 <script setup lang="ts">
+import { getImageUrl } from '@/utils'
+
 const textbookLoginUrl = 'http://60.216.119.138:3000/login'
+const textbookBannerUrl = getImageUrl('szjc/13数字教材banner.png')
+const textbookBadgeUrl = getImageUrl('szjc/数字教材标签.png')
 
 const textbooks = [
   {
     title: '画法几何与机械制图 第2版',
     authors: '段辉 张莹 陈清奎',
-    cover: '/images/szjc/画法几何与机械制图缩略图.png',
+    cover: getImageUrl('szjc/画法几何与机械制图缩略图.png'),
   },
   {
     title: '液压与气压传动',
     authors: '陈清奎 刘延俊 成红梅',
-    cover: '/images/szjc/液压与气压传动缩略图.png',
+    cover: getImageUrl('szjc/液压与气压传动缩略图.png'),
   },
   {
     title: '工程训练',
     authors: '赵越超 董世知 范培卿',
-    cover: '/images/szjc/工程训练缩略图.png',
+    cover: getImageUrl('szjc/工程训练缩略图.png'),
+  },
+  {
+    title: '机械设计',
+    authors: '张继忠 赵彦峻 徐 楠',
+    cover: getImageUrl('szjc/机械设计缩略图.png'),
   },
 ]
 </script>
