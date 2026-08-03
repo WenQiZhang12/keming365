@@ -16,11 +16,11 @@ from urllib.request import Request, urlopen
 
 from django.conf import settings
 from django.contrib.auth.hashers import make_password
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Q
 from django.utils import timezone
 
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -34,7 +34,7 @@ from apps.courses.models import TbCurriculum, TbExperiment
 from apps.home.models import TbViewpager
 from apps.news.models import News
 from apps.payments.models import Orders
-from apps.admin_panel.models import AiVrCourseContent
+from apps.admin_panel.models import AiVrCourseContent, UserAccountControl
 from apps.admin_panel.ai_vr_serializers import AiVrCourseContentSerializer
 from apps.admin_panel.user_deletion import delete_user_with_history
 
@@ -53,10 +53,19 @@ from apps.admin_panel.serializers import (
 )
 
 from utils.pagination import StandardPagination
-from utils.permissions import IsTeacherOrAdmin
+from utils.permissions import IsAdminUser
 
 
 logger = logging.getLogger(__name__)
+
+
+def _is_last_enabled_formal_admin(user):
+    if user.type != 4:
+        return False
+    if UserAccountControl.objects.filter(user_id=user.id, enabled=False).exists():
+        return False
+    disabled_ids = UserAccountControl.objects.filter(enabled=False).values_list('user_id', flat=True)
+    return TbUser.objects.filter(type=4).exclude(id__in=disabled_ids).count() <= 1
 
 
 def _convert_ppt_to_pdf(ppt_path: Path):
@@ -115,7 +124,7 @@ class UserManageViewSet(ModelViewSet):
     """
 
     queryset = TbUser.objects.all()
-    permission_classes = [IsTeacherOrAdmin]
+    permission_classes = [IsAdminUser]
     pagination_class = StandardPagination
     lookup_field = 'pk'
 
@@ -143,28 +152,76 @@ class UserManageViewSet(ModelViewSet):
             qs = qs.filter(type=user_type)
         return qs.order_by('-createTime')
 
+    @transaction.atomic
     def perform_create(self, serializer):
-        # 从 validated_data 中拿出字段
-        validated = serializer.validated_data.copy()
-        validated['id'] = str(uuid.uuid4()).replace('-', '')[:32]
-        if validated.get('password'):
-            validated['password'] = make_password(validated['password'])
-        validated['createTime'] = timezone.now()
-        serializer.save(**validated)
+        enabled = serializer.validated_data.pop('enabled', True)
+        password = serializer.validated_data.get('password')
+        if password:
+            serializer.validated_data['password'] = make_password(password)
+        serializer.save(
+            id=str(uuid.uuid4()).replace('-', '')[:32],
+            createTime=timezone.now(),
+        )
+        UserAccountControl.objects.update_or_create(
+            user_id=serializer.instance.id,
+            defaults={'enabled': enabled},
+        )
 
+    @transaction.atomic
     def perform_update(self, serializer):
+        instance = serializer.instance
         data = serializer.validated_data
+        enabled = data.pop('enabled', None)
+        effective_type = data.get('type', instance.type)
+        is_self = str(instance.id) == str(self.request.user.id)
+        if is_self and (enabled is False or effective_type != instance.type):
+            raise serializers.ValidationError('不能禁用或变更当前登录账号身份')
+        if is_self and 'expireTime' in data and data['expireTime'] != instance.expireTime:
+            raise serializers.ValidationError('不能修改当前登录账号的管理员期限')
+        if _is_last_enabled_formal_admin(instance):
+            if enabled is False or effective_type != 4:
+                raise serializers.ValidationError('不能禁用或降级最后一个管理员账号')
         # 如果提供了密码，加密
         if data.get('password'):
             data['password'] = make_password(data['password'])
         else:
             data.pop('password', None)
-        serializer.save()
+        instance = serializer.save()
+        if enabled is not None:
+            UserAccountControl.objects.update_or_create(
+                user_id=instance.id,
+                defaults={'enabled': enabled},
+            )
+
+    @action(detail=True, methods=['post'], url_path='reset-password')
+    def reset_password(self, request, pk=None):
+        user = self.get_object()
+        new_password = str(request.data.get('newPassword', ''))
+        if len(new_password) < 8:
+            return Response(
+                {'detail': '新密码不能少于8位'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.password = make_password(new_password)
+        user.save(update_fields=['password'])
+        return Response({'message': f'用户“{user.username}”的密码已重置'})
 
     def destroy(self, request, *args, **kwargs):
         user = self.get_object()
+        if str(user.id) == str(request.user.id):
+            return Response(
+                {'detail': '不能删除当前登录账号'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if _is_last_enabled_formal_admin(user):
+            return Response(
+                {'detail': '不能删除最后一个管理员账号'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         username = user.username or user.name or str(user.pk)
-        result = delete_user_with_history(user)
+        with transaction.atomic():
+            result = delete_user_with_history(user)
+            UserAccountControl.objects.filter(user_id=user.id).delete()
         return Response({
             'message': f'用户“{username}”及关联历史数据已删除',
             'details': result,
@@ -188,7 +245,7 @@ class ExperimentManageViewSet(ModelViewSet):
 
     queryset = TbExperiment.objects.all()
     serializer_class = AdminExperimentSerializer
-    permission_classes = [IsTeacherOrAdmin]
+    permission_classes = [IsAdminUser]
     pagination_class = StandardPagination
     lookup_field = 'pk'
 
@@ -227,7 +284,7 @@ class SchoolManageViewSet(ModelViewSet):
     """
 
     queryset = TbSchoolInfo.objects.all()
-    permission_classes = [IsTeacherOrAdmin]
+    permission_classes = [IsAdminUser]
     pagination_class = StandardPagination
     lookup_field = 'pk'
 
@@ -271,7 +328,7 @@ class ViewpagerManageViewSet(ModelViewSet):
     """
 
     queryset = TbViewpager.objects.all()
-    permission_classes = [IsTeacherOrAdmin]
+    permission_classes = [IsAdminUser]
     pagination_class = StandardPagination
     lookup_field = 'pk'
 
@@ -311,7 +368,7 @@ class NewsManageViewSet(ModelViewSet):
     """
 
     queryset = News.objects.all()
-    permission_classes = [IsTeacherOrAdmin]
+    permission_classes = [IsAdminUser]
     pagination_class = StandardPagination
     lookup_field = 'pk'
 
@@ -353,7 +410,7 @@ class DashboardView(APIView):
     GET /api/v1/admin/dashboard/
     """
 
-    permission_classes = [IsTeacherOrAdmin]
+    permission_classes = [IsAdminUser]
 
     def get(self, request):
         today = timezone.localdate()
@@ -380,7 +437,7 @@ class AiVrCourseContentViewSet(ModelViewSet):
     lookup_field = 'pk'
 
     def get_permissions(self):
-        return [IsTeacherOrAdmin()]
+        return [IsAdminUser()]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -677,4 +734,4 @@ class PublicAiVrCourseContentViewSet(AiVrCourseContentViewSet):
             return [AllowAny()]
         if self.action == 'assistant':
             return [IsAuthenticated()]
-        return [IsTeacherOrAdmin()]
+        return [IsAdminUser()]

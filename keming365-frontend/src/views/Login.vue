@@ -72,7 +72,6 @@
 
             <div class="link-row">
               <button type="button" @click="showForgotPassword">忘记密码?</button>
-              <span>还没有账号？<router-link to="/register">立即注册</router-link></span>
             </div>
           </form>
         </div>
@@ -117,7 +116,7 @@ const doLogin = async () => {
 }
 
 const showForgotPassword = () => {
-  alert('忘记密码功能即将上线，请联系管理员重置密码')
+  alert('请联系管理员在用户管理中重置密码。')
 }
 
 onMounted(() => {
@@ -371,7 +370,7 @@ onMounted(() => {
 .link-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-top: 20px;
   color: #8998ad;
   font-size: 12px;
@@ -384,13 +383,7 @@ onMounted(() => {
     font: inherit;
   }
 
-  a {
-    margin-left: 5px;
-    color: #1769e8;
-  }
-
-  button:hover,
-  a:hover {
+  button:hover {
     text-decoration: underline;
   }
 }
@@ -430,14 +423,4 @@ onMounted(() => {
   }
 }
 
-@media (max-width: 420px) {
-  .link-row {
-    align-items: flex-start;
-    gap: 16px;
-
-    span {
-      text-align: right;
-    }
-  }
-}
 </style>

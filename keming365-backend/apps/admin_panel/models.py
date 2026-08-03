@@ -55,3 +55,14 @@ class AiVrCourseContent(models.Model):
 
     def __str__(self):
         return f'{self.curriculum_name} - {self.section_title} - {self.resource_type}'
+
+
+class UserAccountControl(models.Model):
+    """Mutable account controls kept outside the legacy ``tb_user`` table."""
+
+    user_id = models.CharField(primary_key=True, max_length=255)
+    enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'admin_user_account_control'

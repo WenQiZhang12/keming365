@@ -5,10 +5,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 from datetime import timedelta
 
-from django.test import SimpleTestCase, override_settings
+from django.test import SimpleTestCase
+from django.urls import Resolver404, resolve
 from django.utils import timezone
 
-from apps.accounts.serializers import UserRegisterSerializer
+from apps.accounts.serializers import UserLoginSerializer
+from utils.auth_backend import TbUserJWTAuthentication
 from utils.permissions import IsAdminUser, IsTeacherOrAdmin
 
 
@@ -34,42 +36,46 @@ class UserRoleTests(SimpleTestCase):
         self.assertTrue(IsAdminUser().has_permission(active, None))
         self.assertFalse(IsAdminUser().has_permission(expired, None))
 
-    @patch('apps.accounts.serializers.TbUser.objects.filter')
-    def test_public_registration_forces_student_type(self, user_filter):
-        user_filter.return_value.exists.return_value = False
-        serializer = UserRegisterSerializer(data={
-            'username': 'new-student',
-            'password': 'secure-password',
-            'type': 4,
-        })
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-        self.assertEqual(serializer.validated_data['type'], 2)
+class PublicRegistrationTests(SimpleTestCase):
+    def test_public_registration_route_is_not_available(self):
+        with self.assertRaises(Resolver404):
+            resolve('/api/v1/accounts/auth/register/')
 
-    @override_settings(TEACHER_REGISTRATION_CODE='teacher-secret')
-    @patch('apps.accounts.serializers.TbUser.objects.filter')
-    def test_teacher_registration_requires_matching_code(self, user_filter):
-        user_filter.return_value.exists.return_value = False
-        serializer = UserRegisterSerializer(data={
-            'username': 'new-teacher',
-            'password': 'secure-password',
-            'role': 'teacher',
-            'inviteCode': 'wrong-code',
+    def test_self_service_password_change_route_is_not_available(self):
+        with self.assertRaises(Resolver404):
+            resolve('/api/v1/accounts/auth/change-password/')
+
+
+class DisabledAccountAuthenticationTests(SimpleTestCase):
+    @patch('apps.accounts.serializers.UserAccountControl.objects.filter')
+    @patch('apps.accounts.serializers.TbUser.objects.get')
+    def test_disabled_account_cannot_log_in(self, user_get, control_filter):
+        user_get.return_value = SimpleNamespace(
+            id='disabled-user',
+            username='disabled-user',
+            password='unused',
+        )
+        control_filter.return_value.first.return_value = SimpleNamespace(enabled=False)
+
+        serializer = UserLoginSerializer(data={
+            'username': 'disabled-user',
+            'password': 'password-123',
         })
+
         self.assertFalse(serializer.is_valid())
-        self.assertIn('inviteCode', serializer.errors)
+        self.assertIn('non_field_errors', serializer.errors)
 
-    @override_settings(TEMP_ADMIN_REGISTRATION_CODE='temporary-secret', TEMP_ADMIN_MAX_DAYS=30)
-    @patch('apps.accounts.serializers.TbUser.objects.filter')
-    def test_temporary_admin_gets_expiry(self, user_filter):
-        user_filter.return_value.exists.return_value = False
-        serializer = UserRegisterSerializer(data={
-            'username': 'temporary-admin',
-            'password': 'secure-password',
-            'role': 'temporary_admin',
-            'inviteCode': 'temporary-secret',
-            'temporaryDays': 7,
-        })
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-        self.assertEqual(serializer.validated_data['type'], 8)
-        self.assertGreater(serializer.validated_data['expireTime'], timezone.now())
+    @patch('utils.auth_backend.UserAccountControl.objects.filter')
+    def test_existing_jwt_is_rejected_after_account_is_disabled(self, control_filter):
+        control_filter.return_value.first.return_value = SimpleNamespace(enabled=False)
+        authentication = TbUserJWTAuthentication()
+        request = SimpleNamespace()
+        user = SimpleNamespace(id='disabled-user')
 
+        with patch.object(authentication, 'get_header', return_value=b'Bearer token'), \
+                patch.object(authentication, 'get_raw_token', return_value=b'token'), \
+                patch.object(authentication, 'get_validated_token', return_value={'user_id': user.id}), \
+                patch.object(authentication, 'get_user', return_value=user):
+            result = authentication.authenticate(request)
+
+        self.assertIsNone(result)

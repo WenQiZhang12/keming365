@@ -31,7 +31,7 @@ export function formatDate(dateStr: string): string {
 
 export function hasAdminAccess(user?: { type?: number; expireTime?: string | null } | null): boolean {
   if (!user) return false
-  if (user.type === 1 || user.type === 4) return true
+  if (user.type === 4) return true
   if (user.type !== 8 || !user.expireTime) return false
   return new Date(user.expireTime).getTime() > Date.now()
 }

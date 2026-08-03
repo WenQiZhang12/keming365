@@ -477,12 +477,3 @@ AI_ASSISTANT_API_KEY = os.environ.get('AI_ASSISTANT_API_KEY', '')
 AI_ASSISTANT_BASE_URL = os.environ.get('AI_ASSISTANT_BASE_URL', 'https://api.openai.com/v1')
 AI_ASSISTANT_MODEL = os.environ.get('AI_ASSISTANT_MODEL', 'gpt-4o-mini')
 AI_ASSISTANT_TIMEOUT = int(os.environ.get('AI_ASSISTANT_TIMEOUT', '20'))
-
-# ============================================================================
-# Registration role verification
-# ============================================================================
-
-TEACHER_REGISTRATION_CODE = os.environ.get('TEACHER_REGISTRATION_CODE', '')
-ADMIN_REGISTRATION_CODE = os.environ.get('ADMIN_REGISTRATION_CODE', '')
-TEMP_ADMIN_REGISTRATION_CODE = os.environ.get('TEMP_ADMIN_REGISTRATION_CODE', '')
-TEMP_ADMIN_MAX_DAYS = int(os.environ.get('TEMP_ADMIN_MAX_DAYS', '30'))

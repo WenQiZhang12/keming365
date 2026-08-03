@@ -108,12 +108,6 @@ export async function login(username: string, password: string): Promise<LoginRe
   return data
 }
 
-export async function register(params: {
-  username: string; name: string; password: string; telephone?: string
-}): Promise<void> {
-  await api.post('/accounts/auth/register/', params)
-}
-
 export async function getProfile(): Promise<UserInfo> {
   const { data } = await api.get('/accounts/auth/profile/')
   return data

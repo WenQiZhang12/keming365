@@ -5,20 +5,16 @@ apps.accounts.serializers - 用户与账户 序列化器
 
 import random
 import re
-import secrets
-from datetime import timedelta
 
-from django.conf import settings
-from django.contrib.auth.hashers import make_password, check_password
+from django.contrib.auth.hashers import check_password
 import hashlib
-from django.utils import timezone
 
 from rest_framework import serializers
 
 from apps.accounts.models import TbUser
+from apps.admin_panel.models import UserAccountControl
 from utils.exceptions import BusinessError
 from utils.sms import sms_client
-from utils.user_roles import ADMIN, STUDENT, TEACHER, TEMPORARY_ADMIN
 
 
 # ============================================================================
@@ -30,94 +26,6 @@ def _validate_telephone(value):
     if not re.match(r'^1[3-9]\d{9}$', value):
         raise serializers.ValidationError('手机号格式不正确')
     return value
-
-
-# ============================================================================
-# 注册
-# ============================================================================
-
-class UserRegisterSerializer(serializers.Serializer):
-    """用户注册序列化器"""
-
-    username = serializers.CharField(max_length=255, required=True, help_text='用户名')
-    password = serializers.CharField(
-        max_length=255, required=True, write_only=True, help_text='密码',
-    )
-    name = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text='姓名')
-    telephone = serializers.CharField(
-        max_length=255, required=False, allow_blank=True, help_text='手机号',
-        validators=[_validate_telephone],
-    )
-    role = serializers.ChoiceField(
-        choices=('student', 'teacher', 'admin', 'temporary_admin'),
-        default='student',
-    )
-    inviteCode = serializers.CharField(required=False, allow_blank=True, write_only=True)
-    temporaryDays = serializers.IntegerField(required=False, min_value=1, default=7)
-
-    def validate_username(self, value):
-        if not value or not value.strip():
-            raise serializers.ValidationError('用户名不能为空')
-        # 检查用户名是否已存在
-        if TbUser.objects.filter(username=value).exists():
-            raise serializers.ValidationError('用户名已存在')
-        return value.strip()
-
-    def validate(self, attrs):
-        # 生成主键 ID（时间戳 + 随机数）
-        import uuid
-        attrs['id'] = str(uuid.uuid4()).replace('-', '')[:32]
-        # 密码加密
-        attrs['password'] = make_password(attrs['password'])
-        # 设置创建时间
-        attrs['createTime'] = timezone.now()
-        role = attrs.get('role', 'student')
-        role_config = {
-            'student': (STUDENT, ''),
-            'teacher': (TEACHER, settings.TEACHER_REGISTRATION_CODE),
-            'admin': (ADMIN, settings.ADMIN_REGISTRATION_CODE),
-            'temporary_admin': (TEMPORARY_ADMIN, settings.TEMP_ADMIN_REGISTRATION_CODE),
-        }
-        user_type, required_code = role_config[role]
-        if role != 'student':
-            if not required_code:
-                raise serializers.ValidationError({'inviteCode': '该身份暂未开放注册，请联系管理员'})
-            supplied_code = str(attrs.get('inviteCode', '')).strip()
-            if not secrets.compare_digest(supplied_code, required_code):
-                raise serializers.ValidationError({'inviteCode': '邀请码不正确'})
-
-        attrs['type'] = user_type
-        attrs['expireTime'] = None
-        if role == 'temporary_admin':
-            days = attrs.get('temporaryDays', 7)
-            if days > settings.TEMP_ADMIN_MAX_DAYS:
-                raise serializers.ValidationError({
-                    'temporaryDays': f'临时管理员有效期不能超过 {settings.TEMP_ADMIN_MAX_DAYS} 天'
-                })
-            attrs['expireTime'] = timezone.now() + timedelta(days=days)
-        return attrs
-
-    def create(self, validated_data):
-        # Use raw SQL to avoid Django ORM inserting columns not in the actual table
-        from django.db import connection
-        validated_data.pop('role', None)
-        validated_data.pop('inviteCode', None)
-        validated_data.pop('temporaryDays', None)
-        id_val = validated_data.get('id')
-        username = validated_data.get('username')
-        password = validated_data.get('password')
-        name_val = validated_data.get('name', '')
-        telephone = validated_data.get('telephone', '')
-        user_type = validated_data.get('type', 2)
-        expire_time = validated_data.get('expireTime')
-        create_time = validated_data.get('createTime')
-        with connection.cursor() as cursor:
-            cursor.execute(
-                'INSERT INTO tb_user (id, username, password, name, telephone, type, create_time, expire_time) '
-                'VALUES (%s, %s, %s, %s, %s, %s, %s, %s)',
-                [id_val, username, password, name_val, telephone, user_type, create_time, expire_time]
-            )
-        return TbUser(**validated_data)
 
 
 # ============================================================================
@@ -151,6 +59,10 @@ class UserLoginSerializer(serializers.Serializer):
             user = TbUser.objects.get(username=username)
         except TbUser.DoesNotExist:
             raise serializers.ValidationError('用户名或密码错误')
+
+        control = UserAccountControl.objects.filter(user_id=user.id).first()
+        if control is not None and not control.enabled:
+            raise serializers.ValidationError('该账号已被禁用，请联系管理员')
 
         if not user.password:
             raise serializers.ValidationError('用户名或密码错误')
@@ -231,26 +143,6 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
     def validate_sex(self, value):
         if value not in (0, 1, 2):
             raise serializers.ValidationError('性别值无效（0=未知, 1=男, 2=女）')
-        return value
-
-
-# ============================================================================
-# 修改密码
-# ============================================================================
-
-class ChangePasswordSerializer(serializers.Serializer):
-    """修改密码序列化器"""
-
-    oldPassword = serializers.CharField(
-        max_length=255, required=True, write_only=True, help_text='旧密码',
-    )
-    newPassword = serializers.CharField(
-        max_length=255, required=True, write_only=True, help_text='新密码',
-    )
-
-    def validate_newPassword(self, value):
-        if len(value) < 6:
-            raise serializers.ValidationError('新密码长度不能少于 6 位')
         return value
 
 

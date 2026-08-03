@@ -14,6 +14,7 @@ from rest_framework_simplejwt.tokens import AccessToken
 from rest_framework_simplejwt.exceptions import InvalidToken
 
 from apps.accounts.models import TbUser
+from apps.admin_panel.models import UserAccountControl
 
 
 class TbUserJWTAuthentication(JWTAuthentication):
@@ -43,7 +44,13 @@ class TbUserJWTAuthentication(JWTAuthentication):
 
             validated_token = self.get_validated_token(raw_token)
 
-            return self.get_user(validated_token), validated_token
+            user = self.get_user(validated_token)
+            if user is None:
+                return None
+            control = UserAccountControl.objects.filter(user_id=user.id).first()
+            if control is not None and not control.enabled:
+                return None
+            return user, validated_token
         except Exception:
             return None
 

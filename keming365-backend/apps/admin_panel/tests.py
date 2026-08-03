@@ -6,9 +6,11 @@ from unittest.mock import patch
 from django.test import SimpleTestCase, TestCase
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.admin_panel.models import AiVrCourseContent
+from apps.admin_panel.serializers import AdminUserCreateSerializer
 from apps.admin_panel.views.admin import (
     AiVrCourseContentViewSet,
     DashboardView,
@@ -80,7 +82,7 @@ class DashboardViewTests(SimpleTestCase):
     @patch('apps.admin_panel.views.admin.TbCurriculum.objects.count', return_value=20)
     @patch('apps.admin_panel.views.admin.TbUser.objects.count', return_value=10)
     @patch('apps.admin_panel.views.admin.connection.introspection.table_names', return_value=[])
-    def test_teacher_receives_zero_when_orders_table_is_absent(
+    def test_admin_receives_zero_when_orders_table_is_absent(
         self,
         _table_names,
         _user_count,
@@ -92,7 +94,7 @@ class DashboardViewTests(SimpleTestCase):
     ):
         user_filter.return_value.count.return_value = 1
 
-        response = self.get_dashboard(authenticated_user(1))
+        response = self.get_dashboard(authenticated_user(4))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['orderCount'], 0)
@@ -121,7 +123,7 @@ class AdminApiPermissionMatrixTests(SimpleTestCase):
                 self.assertEqual(view(request).status_code, expected[user_type])
 
     def test_admin_namespace_permission_matrix(self):
-        expected = {None: 401, 2: 403, 1: 200, 4: 200}
+        expected = {None: 401, 2: 403, 1: 403, 4: 200}
         cases = (
             (
                 'dashboard',
@@ -207,6 +209,78 @@ class StandardPaginationTests(SimpleTestCase):
         self.assertEqual(len(page), 100)
 
 
+class AdminUserManagementValidationTests(TestCase):
+    @patch('apps.admin_panel.serializers.TbUser.objects.filter')
+    def test_create_validates_duplicate_username_and_field_lengths(self, user_filter):
+        user_filter.return_value.exists.return_value = True
+        duplicate = AdminUserCreateSerializer(data={
+            'username': 'existing',
+            'password': 'password-123',
+            'name': '测试用户',
+            'type': 2,
+        })
+        self.assertFalse(duplicate.is_valid())
+        self.assertIn('username', duplicate.errors)
+
+        user_filter.return_value.exists.return_value = False
+        long_name = AdminUserCreateSerializer(data={
+            'username': 'new-user',
+            'password': 'password-123',
+            'name': '一' * 21,
+            'type': 2,
+        })
+        self.assertFalse(long_name.is_valid())
+        self.assertIn('name', long_name.errors)
+
+    @patch('apps.admin_panel.serializers.TbUser.objects.filter')
+    def test_temporary_admin_requires_future_expiry(self, user_filter):
+        user_filter.return_value.exists.return_value = False
+        serializer = AdminUserCreateSerializer(data={
+            'username': 'temporary-admin',
+            'password': 'password-123',
+            'name': '临时管理员',
+            'type': 8,
+        })
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('expireTime', serializer.errors)
+
+    def test_current_user_cannot_be_deleted(self):
+        target = SimpleNamespace(id='user-4', username='admin', type=4)
+        view = UserManageViewSet.as_view({'delete': 'destroy'})
+        request = APIRequestFactory().delete('/api/v1/admin/users/user-4/')
+        force_authenticate(request, user=authenticated_user(4))
+        with patch.object(UserManageViewSet, 'get_object', return_value=target):
+            response = view(request, pk='user-4')
+        self.assertEqual(response.status_code, 400)
+
+    def test_current_user_cannot_disable_or_change_own_role(self):
+        view = UserManageViewSet()
+        view.request = SimpleNamespace(user=authenticated_user(8))
+        target = SimpleNamespace(id='user-8', username='temporary-admin', type=8)
+
+        for changes in ({'enabled': False}, {'type': 4}):
+            with self.subTest(changes=changes):
+                serializer = SimpleNamespace(
+                    instance=target,
+                    validated_data=dict(changes),
+                )
+                with self.assertRaisesMessage(ValidationError, '不能禁用或变更当前登录账号身份'):
+                    view.perform_update(serializer)
+
+    def test_reset_password_rejects_short_password(self):
+        target = SimpleNamespace(id='student-1', username='student')
+        view = UserManageViewSet.as_view({'post': 'reset_password'})
+        request = APIRequestFactory().post(
+            '/api/v1/admin/users/student-1/reset-password/',
+            {'newPassword': 'short'},
+            format='json',
+        )
+        force_authenticate(request, user=authenticated_user(4))
+        with patch.object(UserManageViewSet, 'get_object', return_value=target):
+            response = view(request, pk='student-1')
+        self.assertEqual(response.status_code, 400)
+
+
 class AiVrCourseContentCrudTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
@@ -282,9 +356,9 @@ class AiVrCourseContentCrudTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_teacher_and_admin_can_use_course_action_under_admin_prefix(self):
+    def test_only_admin_can_use_course_action_under_admin_prefix(self):
         view = AiVrCourseContentViewSet.as_view({'get': 'course'})
-        for user_type in (1, 4):
+        for user_type, expected_status in ((1, 403), (4, 200)):
             with self.subTest(user_type=user_type):
                 request = self.factory.get(
                     '/api/v1/admin/ai-vr/course/',
@@ -292,7 +366,7 @@ class AiVrCourseContentCrudTests(TestCase):
                 )
                 force_authenticate(request, user=authenticated_user(user_type))
 
-                self.assertEqual(view(request).status_code, 200)
+                self.assertEqual(view(request).status_code, expected_status)
 
     def test_admin_can_create_learning_content_for_existing_course(self):
         request = self.factory.post('/api/v1/admin/ai-vr/', self.payload, format='json')

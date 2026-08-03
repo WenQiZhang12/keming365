@@ -40,10 +40,11 @@
           </div>
         </div>
         <div class="user" v-else>
-          <router-link to="/login" class="login-link">登录/注册</router-link>
+          <router-link to="/login" class="login-link">登录</router-link>
         </div>
       </div>
     </div>
+
   </header>
 </template>
 

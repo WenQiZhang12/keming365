@@ -6,8 +6,10 @@ apps.admin_panel.serializers - 管理后台 序列化器
 """
 
 from rest_framework import serializers
+from django.utils import timezone
 
 from apps.accounts.models import TbUser
+from apps.admin_panel.models import UserAccountControl
 from apps.common.models import TbSchoolInfo
 from apps.courses.models import TbExperiment
 from apps.home.models import TbViewpager
@@ -23,6 +25,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
     """用户管理序列化器"""
 
     status = serializers.SerializerMethodField(help_text='用户状态')
+    enabled = serializers.SerializerMethodField()
     createTime = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
     expireTime = serializers.DateTimeField(format='%Y-%m-%d %H:%M:%S', read_only=True)
 
@@ -31,12 +34,15 @@ class AdminUserSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'username', 'name', 'telephone', 'email', 'type',
             'schoolName', 'className', 'sex', 'status', 'createTime',
-            'expireTime',
+            'expireTime', 'enabled',
         ]
 
     def get_status(self, obj):
-        # TbUser 无 status 字段，默认返回 1（正常）
-        return 1
+        return 1 if self.get_enabled(obj) else 0
+
+    def get_enabled(self, obj):
+        control = UserAccountControl.objects.filter(user_id=obj.id).first()
+        return True if control is None else control.enabled
 
 
 class AdminUserCreateSerializer(serializers.ModelSerializer):
@@ -46,10 +52,10 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
         model = TbUser
         fields = [
             'id', 'username', 'name', 'telephone', 'email', 'type',
-            'schoolName', 'className', 'sex', 'password',
+            'schoolName', 'className', 'sex', 'password', 'expireTime', 'enabled',
         ]
         extra_kwargs = {
-            'password': {'write_only': True},
+            'password': {'write_only': True, 'required': True, 'min_length': 8},
             'id': {'read_only': True},
         }
 
@@ -58,10 +64,35 @@ class AdminUserCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('用户类型无效（1=教师, 2=学生, 4=管理员, 5=普通用户, 8=临时管理员）')
         return value
 
+    expireTime = serializers.DateTimeField(required=False, allow_null=True)
+    enabled = serializers.BooleanField(required=False, default=True)
+
+    def validate_name(self, value):
+        if len(value or '') > 20:
+            raise serializers.ValidationError('姓名不能超过20个字符')
+        return value
+
+    def validate_telephone(self, value):
+        if value and len(value) > 11:
+            raise serializers.ValidationError('手机号不能超过11位')
+        return value
+
     def validate_username(self, value):
         if not value or not value.strip():
             raise serializers.ValidationError('用户名不能为空')
-        return value.strip()
+        value = value.strip()
+        if TbUser.objects.filter(username=value).exists():
+            raise serializers.ValidationError('用户名已存在')
+        return value
+
+    def validate(self, attrs):
+        if attrs.get('type') == 8:
+            expires_at = attrs.get('expireTime')
+            if not expires_at or expires_at <= timezone.now():
+                raise serializers.ValidationError({'expireTime': '临时管理员必须设置未来的到期时间'})
+        else:
+            attrs['expireTime'] = None
+        return attrs
 
 
 class AdminUserUpdateSerializer(serializers.ModelSerializer):
@@ -71,10 +102,10 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
         model = TbUser
         fields = [
             'username', 'name', 'telephone', 'email', 'type',
-            'schoolName', 'className', 'sex', 'password',
+            'schoolName', 'className', 'sex', 'password', 'expireTime', 'enabled',
         ]
         extra_kwargs = {
-            'password': {'write_only': True, 'required': False},
+            'password': {'write_only': True, 'required': False, 'min_length': 8},
             'username': {'required': False},
             'name': {'required': False},
             'telephone': {'required': False},
@@ -84,6 +115,38 @@ class AdminUserUpdateSerializer(serializers.ModelSerializer):
             'className': {'required': False},
             'sex': {'required': False},
         }
+
+    expireTime = serializers.DateTimeField(required=False, allow_null=True)
+    enabled = serializers.BooleanField(required=False)
+
+    def validate_name(self, value):
+        if len(value or '') > 20:
+            raise serializers.ValidationError('姓名不能超过20个字符')
+        return value
+
+    def validate_telephone(self, value):
+        if value and len(value) > 11:
+            raise serializers.ValidationError('手机号不能超过11位')
+        return value
+
+    def validate_username(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('用户名不能为空')
+        duplicate = TbUser.objects.filter(username=value).exclude(pk=self.instance.pk).exists()
+        if duplicate:
+            raise serializers.ValidationError('用户名已存在')
+        return value
+
+    def validate(self, attrs):
+        user_type = attrs.get('type', self.instance.type)
+        if user_type == 8:
+            expires_at = attrs.get('expireTime', self.instance.expireTime)
+            if not expires_at or expires_at <= timezone.now():
+                raise serializers.ValidationError({'expireTime': '临时管理员必须设置未来的到期时间'})
+        else:
+            attrs['expireTime'] = None
+        return attrs
 
     def validate_type(self, value):
         if value not in (1, 2, 4, 5, 8):

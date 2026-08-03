@@ -2,7 +2,7 @@
 """
 apps.accounts.views.auth - 认证相关视图
 
-提供注册、登录、登出、刷新 Token 等接口
+提供登录、登出、刷新 Token 等接口
 """
 
 import logging
@@ -21,48 +21,10 @@ from apps.accounts.models import TbUser
 from apps.accounts.serializers import (
     SendSmsSerializer,
     UserLoginSerializer,
-    UserRegisterSerializer,
 )
 from utils.exceptions import BusinessError
 
 logger = logging.getLogger(__name__)
-
-
-# ============================================================================
-# 注册
-# ============================================================================
-
-class RegisterView(APIView):
-    """用户注册
-
-    POST /api/v1/accounts/auth/register/
-    """
-
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        serializer = UserRegisterSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        user = serializer.save()
-
-        # 生成 JWT Token
-        refresh = RefreshToken.for_user(user)
-
-        return Response(
-            {
-                'access': str(refresh.access_token),
-                'refresh': str(refresh),
-                'user': {
-                    'id': user.id,
-                    'username': user.username,
-                    'name': user.name,
-                    'type': user.type if user.type is not None else 5,
-                    'expireTime': user.expireTime.isoformat() if user.expireTime else None,
-                },
-            },
-            status=status.HTTP_201_CREATED,
-        )
 
 
 # ============================================================================
