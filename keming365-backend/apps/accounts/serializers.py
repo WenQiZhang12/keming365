@@ -86,10 +86,6 @@ class UserLoginSerializer(serializers.Serializer):
             return attrs
 
         # 3. 也兼容存储的密码本身就是明文（极少数情况）
-        if stored == password:
-            self._user = user
-            return attrs
-
         raise serializers.ValidationError('用户名或密码错误')
 
 
@@ -109,6 +105,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     schoolName = serializers.CharField(read_only=True)
     className = serializers.CharField(read_only=True)
     sex = serializers.IntegerField(read_only=True)
+
     userImg = serializers.CharField(read_only=True)
     createTime = serializers.DateTimeField(read_only=True, format='%Y-%m-%d %H:%M:%S')
     expireTime = serializers.DateTimeField(read_only=True, format='%Y-%m-%d %H:%M:%S')

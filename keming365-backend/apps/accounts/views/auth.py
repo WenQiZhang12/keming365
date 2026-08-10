@@ -23,6 +23,12 @@ from apps.accounts.serializers import (
     UserLoginSerializer,
 )
 from utils.exceptions import BusinessError
+from utils.throttles import (
+    LoginRateThrottle,
+    RefreshTokenRateThrottle,
+    SmsIpRateThrottle,
+    SmsPhoneRateThrottle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +45,7 @@ class LoginView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [LoginRateThrottle]
 
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)
@@ -107,6 +114,7 @@ class RefreshTokenView(BaseTokenRefreshView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [RefreshTokenRateThrottle]
 
 
 # ============================================================================
@@ -121,6 +129,7 @@ class SendSmsView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [SmsIpRateThrottle, SmsPhoneRateThrottle]
 
     def post(self, request):
         serializer = SendSmsSerializer(data=request.data)

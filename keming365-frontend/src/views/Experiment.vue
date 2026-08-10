@@ -95,6 +95,15 @@
         </div>
       </template>
     </div>
+    <div v-if="maintenanceDialogVisible" class="maintenance-backdrop" role="presentation">
+      <section class="maintenance-dialog" role="alertdialog" aria-modal="true" aria-labelledby="maintenance-title">
+        <h2 id="maintenance-title">提示</h2>
+        <p>系统维护升级中，预计恢复时间下午5点左右，带来不便，敬请谅解。</p>
+        <div class="maintenance-actions">
+          <button type="button" @click="maintenanceDialogVisible = false">确定</button>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -116,6 +125,7 @@ const fromName = ref('')
 const legacyPublisher = ref('')
 const legacyCurriculumId = ref('')
 const legacyAppliId = ref('')
+const maintenanceDialogVisible = ref(false)
 
 const stats = ref({
   totalVisits: 0,
@@ -197,7 +207,9 @@ const loadExperiment = async () => {
   loading.value = true
   error.value = ''
   try {
-    const { data } = await api.get(`/courses/experiments/${id}/`)
+    const { data } = await api.get(`/courses/experiments/${id}/`, {
+      params: { curriculumId: getCurriculumId() }
+    })
     experiment.value = data
     saveLegacyExperiment(data)
     await resolveCurriculumName(data)
@@ -416,10 +428,19 @@ const startExperiment = async () => {
   try {
     const { data: res } = await api.post(`/courses/experiments/${id}/yqpath/`)
     if (res.code !== 0) {
-      toast(res.message || '进入实验失败', 'error')
+      const message = String(res.message || '').trim()
+      if (message.startsWith('wsId:')) {
+        maintenanceDialogVisible.value = true
+      } else {
+        toast(message || '进入实验失败', 'error')
+      }
       return
     }
-    let yqUrl: string = res.details?.resultUrl || ''
+    let yqUrl: string = String(res.details?.resultUrl || '').trim()
+    if (!yqUrl) {
+      maintenanceDialogVisible.value = true
+      return
+    }
     const internalHosts = [
       'http://58.56.66.170:8181', 'https://58.56.66.170:8181',
       'http://58.56.66.170', 'https://58.56.66.170'
@@ -427,9 +448,10 @@ const startExperiment = async () => {
     for (const h of internalHosts) {
       if (yqUrl.indexOf(h) === 0) { yqUrl = yqUrl.substring(h.length); break }
     }
-    if (yqUrl.startsWith('/')) yqUrl = 'https://yq.keming365.com' + yqUrl
+    // The platform may return an absolute URL, /webclient/... or webclient/....
+    // Resolve all three forms against the public cloud-rendering domain.
     const appKey = res.details?.appKey || ''
-    const finalUrl = new URL(yqUrl)
+    const finalUrl = new URL(yqUrl, 'https://yq.keming365.com')
     if (appKey && !finalUrl.searchParams.has('appKey')) finalUrl.searchParams.set('appKey', appKey)
     if (res.details?.timestamp && !finalUrl.searchParams.has('timestamp')) finalUrl.searchParams.set('timestamp', res.details.timestamp)
     if (res.details?.token && !finalUrl.searchParams.has('signature')) finalUrl.searchParams.set('signature', res.details.token)
@@ -454,6 +476,13 @@ watch(activeTab, async (tab) => {
 
 <style lang="scss" scoped>
 .experiment-page { background: #f4f4f4; min-height: 60vh; }
+.maintenance-backdrop { position: fixed; z-index: 1200; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, .42); }
+.maintenance-dialog { width: min(380px, 100%); border-radius: 6px; overflow: hidden; background: #fff; box-shadow: 0 18px 56px rgba(0, 0, 0, .24); }
+.maintenance-dialog h2 { margin: 0; padding: 16px 20px; border-bottom: 1px solid #ececec; color: #333; font-size: 18px; text-align: center; }
+.maintenance-dialog p { margin: 0; padding: 24px 24px 18px; color: #555; font-size: 15px; line-height: 1.8; text-align: center; }
+.maintenance-actions { display: flex; justify-content: center; padding: 4px 24px 22px; }
+.maintenance-actions button { min-width: 88px; height: 34px; border: 0; border-radius: 4px; background: #2f7cee; color: #fff; font-size: 14px; cursor: pointer; }
+.maintenance-actions button:hover { background: #2367d8; }
 .container { max-width: 1200px; margin: 0 auto; padding: 20px 0 32px; }
 .loading { text-align: center; padding: 80px; color: #888;
   .spinner { display: inline-block; width: 36px; height: 36px; border: 3px solid #e0e0e0; border-top-color: #2f7cee; border-radius: 50%; animation: spin .8s linear infinite; margin-bottom: 12px; }

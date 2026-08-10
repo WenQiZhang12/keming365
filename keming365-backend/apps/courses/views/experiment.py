@@ -80,7 +80,14 @@ class ExperimentDetailView(RetrieveAPIView):
         except Http404:
             if not pk:
                 raise
-            obj = self.get_queryset().filter(appliId=pk).first()
+            # AI+VR static resources provide an appliId. Restrict the fallback
+            # lookup to the selected course so duplicate cloud applications do
+            # not write scores to another course's experiment.
+            queryset = self.get_queryset().filter(appliId=pk)
+            curriculum_id = self.request.query_params.get('curriculumId', '').strip()
+            if curriculum_id:
+                queryset = queryset.filter(parentId=curriculum_id)
+            obj = queryset.first()
             if not obj:
                 raise
             self.check_object_permissions(self.request, obj)

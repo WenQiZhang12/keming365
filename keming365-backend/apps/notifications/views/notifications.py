@@ -17,6 +17,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.notifications.serializers import SmsSerializer
+from utils.throttles import SmsIpRateThrottle, SmsPhoneRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class SendSmsView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = [SmsIpRateThrottle, SmsPhoneRateThrottle]
     authentication_classes = []  # 匿名访问
 
     def post(self, request):

@@ -8,8 +8,12 @@ These endpoints replace the legacy JSP callbacks used by YQ/LarkXR:
 """
 
 from decimal import Decimal, InvalidOperation
+import hashlib
+import hmac
+import time
 from uuid import uuid4
 
+from django.conf import settings
 from django.utils.timezone import now
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
@@ -21,8 +25,8 @@ from apps.scores.models import TbExperimentScore, TbExperimentUsetime, TbPersonS
 def _payload(request):
     data = {}
     data.update(request.GET.dict())
-    if hasattr(request, 'data') and isinstance(request.data, dict):
-        data.update(request.data)
+    if hasattr(request, 'data') and request.data:
+        data.update(request.data.items())
     else:
         data.update(request.POST.dict())
     return data
@@ -43,6 +47,25 @@ def _decimal(value, default='0'):
         return Decimal(default)
 
 
+def _authorize_callback(data, purpose, user_id, curriculum_id, experiment_id):
+    """Validate the session signature attached to the callback URL."""
+    callback_ts = _first(data, 'callbackTs')
+    callback_sig = _first(data, 'callbackSig')
+    try:
+        timestamp = int(callback_ts)
+    except (TypeError, ValueError):
+        return False
+    if abs(int(time.time()) - timestamp) > settings.YQ_CALLBACK_MAX_AGE:
+        return False
+    message = '|'.join((purpose, user_id, curriculum_id, experiment_id, callback_ts))
+    expected = hmac.new(
+        settings.YQ_CALLBACK_SECRET.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+    return bool(callback_sig) and hmac.compare_digest(callback_sig, expected)
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def yq_score_callback(request):
@@ -55,6 +78,8 @@ def yq_score_callback(request):
 
     if not user_id or not curriculum_id or not experiment_id:
         return Response({'code': 1, 'flag': 0, 'msg': 'missing required params'})
+    if not _authorize_callback(data, 'score', user_id, curriculum_id, experiment_id):
+        return Response({'code': 403, 'flag': 0, 'msg': 'invalid callback signature'}, status=403)
 
     timestamp = now()
     if user_type == '5':
@@ -110,6 +135,8 @@ def yq_usage_callback(request):
 
     if not user_id or not curriculum_id or not experiment_id:
         return Response({'code': 1, 'msg': 'missing required params'})
+    if not _authorize_callback(data, 'usage', user_id, curriculum_id, experiment_id):
+        return Response({'code': 403, 'flag': 0, 'msg': 'invalid callback signature'}, status=403)
 
     timestamp = now()
     obj = TbExperimentUsetime.objects.filter(userId=user_id, cid=curriculum_id, eid=experiment_id).first()

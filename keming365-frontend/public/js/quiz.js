@@ -12486,6 +12486,7 @@ var QuizSystem = (function() {
         }
 
         var percentage = (score / totalQuestions) * 100;
+        submitOperationScore(Math.round(percentage));
         var icon, text;
 
         if (percentage === 100) {
@@ -12519,6 +12520,32 @@ var QuizSystem = (function() {
     }
 
     // 重置测验
+    function submitOperationScore(score) {
+        var params = new URLSearchParams(window.location.search);
+        var experimentId = params.get('experimentId') || localStorage.getItem('experimentId');
+        var token = localStorage.getItem('token');
+        if (!experimentId || !token) {
+            console.warn('Quiz score was not synchronized: missing experimentId or login token.');
+            return;
+        }
+
+        fetch('/api/v1/quizzes/' + encodeURIComponent(experimentId) + '/score/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ score: score })
+        }).then(function(response) {
+            if (!response.ok) throw new Error('score sync failed');
+            return response.json();
+        }).then(function(result) {
+            console.info('Quiz operation score synchronized:', result.operationScore);
+        }).catch(function(error) {
+            console.error('Quiz operation score synchronization failed:', error);
+        });
+    }
+
     function resetQuiz() {
         document.querySelectorAll('input[type="radio"]').forEach(function(radio) {
             radio.checked = false;

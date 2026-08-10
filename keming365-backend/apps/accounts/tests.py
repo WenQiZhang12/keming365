@@ -2,16 +2,19 @@
 "apps.accounts.tests - 用户与账户 测试"
 
 from types import SimpleNamespace
+import hashlib
 from unittest.mock import patch
 from datetime import timedelta
 
 from django.test import SimpleTestCase
 from django.urls import Resolver404, resolve
 from django.utils import timezone
+from rest_framework.test import APIRequestFactory
 
 from apps.accounts.serializers import UserLoginSerializer
 from utils.auth_backend import TbUserJWTAuthentication
 from utils.permissions import IsAdminUser, IsTeacherOrAdmin
+from utils.throttles import LoginRateThrottle, RefreshTokenRateThrottle, SmsIpRateThrottle, SmsPhoneRateThrottle
 
 
 class UserRoleTests(SimpleTestCase):
@@ -79,3 +82,52 @@ class DisabledAccountAuthenticationTests(SimpleTestCase):
             result = authentication.authenticate(request)
 
         self.assertIsNone(result)
+
+
+class LegacyPasswordMigrationTests(SimpleTestCase):
+    @patch('apps.accounts.serializers.UserAccountControl.objects.filter')
+    @patch('apps.accounts.serializers.TbUser.objects.get')
+    def test_md5_password_remains_md5_after_successful_login(self, user_get, control_filter):
+        user = SimpleNamespace(
+            id='legacy-user',
+            username='legacy-user',
+            password=hashlib.md5(b'legacy-password').hexdigest(),
+        )
+        user_get.return_value = user
+        control_filter.return_value.first.return_value = None
+
+        serializer = UserLoginSerializer(data={
+            'username': 'legacy-user',
+            'password': 'legacy-password',
+        })
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(user.password, hashlib.md5(b'legacy-password').hexdigest())
+
+    @patch('apps.accounts.serializers.UserAccountControl.objects.filter')
+    @patch('apps.accounts.serializers.TbUser.objects.get')
+    def test_plaintext_password_is_rejected(self, user_get, control_filter):
+        user_get.return_value = SimpleNamespace(
+            id='plain-user', username='plain-user', password='plain-password'
+        )
+        control_filter.return_value.first.return_value = None
+
+        serializer = UserLoginSerializer(data={
+            'username': 'plain-user',
+            'password': 'plain-password',
+        })
+
+        self.assertFalse(serializer.is_valid())
+
+
+class AuthenticationThrottleTests(SimpleTestCase):
+    def test_authentication_throttles_create_cache_keys(self):
+        factory = APIRequestFactory()
+        login_request = factory.post('/api/v1/accounts/auth/login/', {'username': 'user'})
+        refresh_request = factory.post('/api/v1/accounts/auth/refresh/', {})
+        sms_request = factory.post('/api/v1/accounts/auth/send-sms/', {'telephone': '13800138000'})
+
+        self.assertTrue(LoginRateThrottle().get_cache_key(login_request, None))
+        self.assertTrue(RefreshTokenRateThrottle().get_cache_key(refresh_request, None))
+        self.assertTrue(SmsIpRateThrottle().get_cache_key(sms_request, None))
+        self.assertTrue(SmsPhoneRateThrottle().get_cache_key(sms_request, None))

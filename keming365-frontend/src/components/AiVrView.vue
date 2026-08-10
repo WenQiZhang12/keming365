@@ -177,7 +177,9 @@ const frameUrl = computed(() => {
   if (!panel) return ''
   if (panel.type === 'test') {
     const chapterFilter = sectionToChapterFilter(panel.sectionTitle)
-    return `/sdxx/quiz-js.html?course=${encodeURIComponent(resolveCourseKey(props.curriculumName))}&chapter=${encodeURIComponent(chapterFilter)}`
+    const experimentId = localStorage.getItem('experimentId') || ''
+    const experimentParam = experimentId ? `&experimentId=${encodeURIComponent(experimentId)}` : ''
+    return `/sdxx/quiz-js.html?course=${encodeURIComponent(resolveCourseKey(props.curriculumName))}&chapter=${encodeURIComponent(chapterFilter)}${experimentParam}`
   }
   if (panel.type === 'correct') return correctUrl(props.curriculumName)
   if (panel.type === 'ai') return `/sdxx/ai-chat.html?lessonId=${lessonIdForCourse(props.curriculumName)}`

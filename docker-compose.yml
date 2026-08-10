@@ -64,6 +64,10 @@ services:
       YQ_APPSECRET_FRAGMENT: ${YQ_APPSECRET_FRAGMENT:-}
       YQ_APPKEY_TRAINING: ${YQ_APPKEY_TRAINING:-}
       YQ_APPSECRET_TRAINING: ${YQ_APPSECRET_TRAINING:-}
+      YQ_SCORE_URL: ${YQ_SCORE_URL:-https://www.keming365.com/experiment/data/save}
+      YQ_USAGE_URL: ${YQ_USAGE_URL:-https://www.keming365.com/experiment/useTime}
+      YQ_CALLBACK_SECRET: ${YQ_CALLBACK_SECRET:-}
+      YQ_CALLBACK_MAX_AGE: ${YQ_CALLBACK_MAX_AGE:-86400}
     depends_on:
       mysql:
         condition: service_healthy

@@ -4,7 +4,7 @@
       <header class="admin-header">
         <div>
           <h1>管理后台</h1>
-          <p>维护用户、课程和 AI+VR 课程智能体资源</p>
+          <p>维护平台用户和基础数据</p>
         </div>
       </header>
 
@@ -120,7 +120,7 @@
         </form>
       </div>
 
-      <section v-if="activeTab === 'aiVr'" class="panel ai-vr-panel">
+      <section v-if="false" class="panel ai-vr-panel">
         <div class="editor-grid">
           <form class="edit-form" @submit.prevent="saveAiVrContent">
             <h2>{{ editingId ? '编辑 AI+VR 内容' : '新增 AI+VR 内容' }}</h2>
@@ -213,7 +213,7 @@ import { useUserStore } from '@/stores/user'
 import Pagination from '@/components/Pagination.vue'
 import { aiVrCourseData } from '@/data/aiVrCourses'
 
-type TabKey = 'users' | 'aiVr'
+type TabKey = 'users'
 type CourseOption = { id: string | number; curriculumName: string; displayName: string }
 type AdminUser = {
   id: string; username: string; name?: string; telephone?: string; email?: string
@@ -228,8 +228,7 @@ const router = useRouter()
 const userStore = useUserStore()
 const activeTab = ref<TabKey>('users')
 const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: 'users', label: '用户管理' },
-  { key: 'aiVr', label: 'AI+VR内容' }
+  { key: 'users', label: '用户管理' }
 ]
 
 const resourceTypes: Array<{ value: AiVrContentItem['resource_type']; label: string }> = [
@@ -414,6 +413,10 @@ async function saveUser() {
     toast('请设置临时管理员到期时间', 'error')
     return
   }
+  if (editingUserId.value) {
+    if (!confirm(`确认保存用户“${userForm.value.username}”的修改？`)) return
+    if (!confirm(`请再次确认：保存后将立即更新用户“${userForm.value.username}”的资料和权限。`)) return
+  }
   savingUser.value = true
   try {
     if (editingUserId.value) {
@@ -508,10 +511,6 @@ function switchTab(tab: TabKey) {
 
 function refreshCurrent() {
   if (activeTab.value === 'users') loadUsers()
-  if (activeTab.value === 'aiVr') {
-    loadAiVrContents()
-    loadCourseOptions()
-  }
 }
 
 async function deleteUser(user: AdminUser) {

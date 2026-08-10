@@ -13,14 +13,31 @@ apps.courses.yqcloud - 云渲染平台对接模块
 """
 
 import hashlib
+import hmac
 import logging
 import time
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import urlopen, Request
 
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _signed_callback_url(base_url: str, user_id: str, curriculum_id: str,
+                         experiment_id: str, purpose: str) -> str:
+    """Append a short-lived signature bound to this cloud-rendering session."""
+    timestamp = str(int(time.time()))
+    message = '|'.join((purpose, str(user_id), str(curriculum_id), str(experiment_id), timestamp))
+    signature = hmac.new(
+        settings.YQ_CALLBACK_SECRET.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+    parts = urlsplit(base_url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.update({'callbackTs': timestamp, 'callbackSig': signature})
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
 def get_yq_path(
@@ -201,12 +218,13 @@ def get_yq_path_from_experiment(experiment, user, request=None) -> dict:
 
     config = settings.YQ_CLOUD_CONFIGS.get(resource_type, settings.YQ_CLOUD_CONFIGS['experiment'])
 
-    if request:
-        score_url = request.build_absolute_uri('/api/v1/scores/report/')
-        use_time_url = request.build_absolute_uri('/api/v1/scores/usage/')
-    else:
-        score_url = settings.YQ_SCORE_URL
-        use_time_url = settings.YQ_USAGE_URL
+    # 云渲染平台需要访问公网回调地址，不能按容器内请求地址动态生成。
+    score_url = _signed_callback_url(
+        settings.YQ_SCORE_URL, user.id, curriculum_id, experiment.id, 'score'
+    )
+    use_time_url = _signed_callback_url(
+        settings.YQ_USAGE_URL, user.id, curriculum_id, experiment.id, 'usage'
+    )
 
     result = get_yq_path(
         token_url=settings.YQ_TOKEN_URL,

@@ -9,8 +9,9 @@ from datetime import datetime, date, timedelta
 
 from django.db import connection
 from django.utils.timezone import now
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.throttling import UserRateThrottle
 from rest_framework.response import Response
 
 import uuid
@@ -18,6 +19,15 @@ import uuid
 from django.db.models import Sum
 
 from apps.courses.models import TbExperiment, TbRecordInfo
+
+
+class StatisticsWriteThrottle(UserRateThrottle):
+    """Limit authenticated users from repeatedly inflating experiment counters."""
+
+    scope = 'statistics_write'
+
+    def get_rate(self):
+        return '10/min'
 
 
 def _get_or_create_daily(experiment_id, stat_date):
@@ -41,7 +51,8 @@ def _get_or_create_daily(experiment_id, stat_date):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
+@throttle_classes([StatisticsWriteThrottle])
 def record_visit(request, pk):
     """
     POST /api/v1/experiments/<id>/record-visit/
@@ -79,7 +90,8 @@ def record_visit(request, pk):
 
 
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
+@throttle_classes([StatisticsWriteThrottle])
 def record_practice(request, pk):
     """
     POST /api/v1/experiments/<id>/record-practice/

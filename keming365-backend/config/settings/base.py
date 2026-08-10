@@ -466,8 +466,10 @@ YQ_TOKEN_URL = os.environ.get('YQ_TOKEN_URL', 'http://58.56.66.170:8181')
 # 云雀平台公网 IP，用于请求参数 preferPublicIp 及替换 resultUrl 中的内网地址
 YQ_PUBLIC_IP = os.environ.get('YQ_PUBLIC_IP', '58.56.66.170')
 YQ_PUBLIC_DOMAIN = os.environ.get('YQ_PUBLIC_DOMAIN', 'yq.keming365.com')
-YQ_SCORE_URL = os.environ.get('YQ_SCORE_URL', 'http://localhost:8000/api/v1/scores/report/')
-YQ_USAGE_URL = os.environ.get('YQ_USAGE_URL', 'http://localhost:8000/api/v1/scores/usage/')
+YQ_SCORE_URL = os.environ.get('YQ_SCORE_URL', 'https://www.keming365.com/experiment/data/save')
+YQ_USAGE_URL = os.environ.get('YQ_USAGE_URL', 'https://www.keming365.com/experiment/useTime')
+YQ_CALLBACK_SECRET = os.environ.get('YQ_CALLBACK_SECRET') or SECRET_KEY
+YQ_CALLBACK_MAX_AGE = int(os.environ.get('YQ_CALLBACK_MAX_AGE', '86400'))
 
 # ============================================================================
 # AI 助学配置
