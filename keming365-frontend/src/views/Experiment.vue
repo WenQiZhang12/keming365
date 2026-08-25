@@ -95,12 +95,12 @@
         </div>
       </template>
     </div>
-    <div v-if="maintenanceDialogVisible" class="maintenance-backdrop" role="presentation">
-      <section class="maintenance-dialog" role="alertdialog" aria-modal="true" aria-labelledby="maintenance-title">
-        <h2 id="maintenance-title">提示</h2>
-        <p>系统维护升级中，预计恢复时间下午5点左右，带来不便，敬请谅解。</p>
+    <div v-if="cloudDialog.visible" class="maintenance-backdrop" role="presentation">
+      <section class="maintenance-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cloud-dialog-title">
+        <h2 id="cloud-dialog-title">{{ cloudDialog.title }}</h2>
+        <p>{{ cloudDialog.message }}</p>
         <div class="maintenance-actions">
-          <button type="button" @click="maintenanceDialogVisible = false">确定</button>
+          <button type="button" @click="cloudDialog.visible = false">确定</button>
         </div>
       </section>
     </div>
@@ -111,7 +111,6 @@
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/api'
-import { toast } from '@/utils'
 
 const route = useRoute()
 const router = useRouter()
@@ -125,7 +124,7 @@ const fromName = ref('')
 const legacyPublisher = ref('')
 const legacyCurriculumId = ref('')
 const legacyAppliId = ref('')
-const maintenanceDialogVisible = ref(false)
+const cloudDialog = ref({ visible: false, title: '', message: '' })
 
 const stats = ref({
   totalVisits: 0,
@@ -410,6 +409,35 @@ const drawLineChart = (canvas: HTMLCanvasElement | null, data: any[], color: str
   })
 }
 
+const showCloudDialog = (kind: 'maintenance' | 'missing-url' | 'timeout' | 'unavailable') => {
+  const messages = {
+    maintenance: {
+      title: '系统维护中',
+      message: '云渲染平台正在维护升级，暂时无法进入实验，请稍后再试。'
+    },
+    'missing-url': {
+      title: '暂时无法进入实验',
+      message: '云渲染平台未返回实验访问地址，请稍后重试。'
+    },
+    timeout: {
+      title: '连接超时',
+      message: '云渲染平台响应超时，请检查网络后稍后重试。'
+    },
+    unavailable: {
+      title: '暂时无法进入实验',
+      message: '云渲染平台暂时无法提供实验服务，请稍后重试。'
+    }
+  }
+  cloudDialog.value = { visible: true, ...messages[kind] }
+}
+
+const cloudFailureKind = (message: string): 'maintenance' | 'timeout' | 'unavailable' => {
+  const normalized = message.toLowerCase()
+  if (normalized.startsWith('wsid:') || normalized.includes('维护') || normalized.includes('maintenance')) return 'maintenance'
+  if (normalized.includes('timeout') || normalized.includes('timed out') || normalized.includes('超时') || normalized.includes('econnaborted')) return 'timeout'
+  return 'unavailable'
+}
+
 const startExperiment = async () => {
   const token = localStorage.getItem('token')
   if (!token) {
@@ -428,17 +456,12 @@ const startExperiment = async () => {
   try {
     const { data: res } = await api.post(`/courses/experiments/${id}/yqpath/`)
     if (res.code !== 0) {
-      const message = String(res.message || '').trim()
-      if (message.startsWith('wsId:')) {
-        maintenanceDialogVisible.value = true
-      } else {
-        toast(message || '进入实验失败', 'error')
-      }
+      showCloudDialog(cloudFailureKind(String(res.message || '').trim()))
       return
     }
     let yqUrl: string = String(res.details?.resultUrl || '').trim()
     if (!yqUrl) {
-      maintenanceDialogVisible.value = true
+      showCloudDialog('missing-url')
       return
     }
     const internalHosts = [
@@ -458,7 +481,7 @@ const startExperiment = async () => {
     window.open(finalUrl.toString(), '_blank')
     await loadStats(String(id))
   } catch (e: any) {
-    toast(e.message || '进入实验失败', 'error')
+    showCloudDialog(cloudFailureKind(String(e?.message || '')))
   } finally {
     entering.value = false
   }

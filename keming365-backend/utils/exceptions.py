@@ -153,7 +153,7 @@ def custom_exception_handler(exc, context):
             },
             status=status.HTTP_401_UNAUTHORIZED,
         )
-
+ 
     if isinstance(exc, PermissionDenied):
         set_rollback()
         return Response(

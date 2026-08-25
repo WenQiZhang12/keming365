@@ -121,7 +121,7 @@ class ReportAccessTests(SimpleTestCase):
         for user_type in (2, 1, 4):
             with self.subTest(user_type=user_type):
                 request = self.factory.get('/api/v1/scores/my-reports/')
-                force_authenticate(request, user=authenticated_user(user_type, f'user-{user_type}'))
+                force_authenticate(request, user=authenticated_user(user_type, f'user-{user_type}')) 
 
                 response = my_reports(request)
 

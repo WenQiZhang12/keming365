@@ -101,6 +101,7 @@ def _fetch_score_rows(user, curriculum_id='', experiment_id='', page=1, page_siz
         {where}
         ORDER BY s.create_time DESC
     """
+
     with connection.cursor() as cur:
         cur.execute(count_sql, values)
         total = cur.fetchone()[0] or 0
@@ -111,6 +112,7 @@ def _fetch_score_rows(user, curriculum_id='', experiment_id='', page=1, page_siz
             query_values.extend([page_size, offset])
         cur.execute(data_sql, query_values)
         rows = cur.fetchall()
+
 
     results = []
     for row in rows:

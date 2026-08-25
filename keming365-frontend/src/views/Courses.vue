@@ -29,6 +29,8 @@
         <div class="vr-sub-tabs" v-if="state.resourceMode === 'vr'">
           <div :class="['exp-type-tab', { active: state.expType === '0' }]" @click="switchExpType('0')">实验教学</div>
           <div :class="['exp-type-tab', { active: state.expType === '1' }]" @click="switchExpType('1')">课堂教学</div>
+          <div v-if="isHydraulicCurriculum" :class="['exp-type-tab', { active: state.expType === 'legacy-video' }]" @click="switchExpType('legacy-video')">教学视频</div>
+          <div v-if="isHydraulicCurriculum" :class="['exp-type-tab', { active: state.expType === 'legacy-scene' }]" @click="switchExpType('legacy-scene')">典型实景资料</div>
           <div :class="['exp-type-tab', { active: state.expType === '3' }]" @click="switchExpType('3')">教学模型</div>
         </div>
       </template>
@@ -52,6 +54,35 @@
         <section class="knowledge-panel">
           <div class="knowledge-title">知识图谱</div>
           <iframe class="knowledge-frame" :src="knowledgeGraphUrl" title="知识图谱"></iframe>
+        </section>
+      </template>
+      <template v-else-if="isLegacyResourceTab">
+        <section class="legacy-resource-panel">
+          <div class="legacy-resource-heading">
+            <h2>{{ legacyResourceTitle }}</h2>
+            <span>{{ legacyResourceItems.length }} 个资源</span>
+          </div>
+          <div v-if="legacyResourceLoading" class="loading"><div class="spinner"></div>资源加载中...</div>
+          <p v-else-if="legacyResourceError" class="legacy-resource-error">{{ legacyResourceError }}</p>
+          <div v-else class="legacy-resource-grid">
+            <button
+              v-for="item in legacyResourceItems"
+              :key="item.url"
+              class="legacy-resource-card"
+              type="button"
+              @click="selectedLegacyResource = item"
+            >
+              <span class="legacy-resource-icon" aria-hidden="true">▶</span>
+              <span class="legacy-resource-name">{{ item.title }}</span>
+            </button>
+          </div>
+          <div v-if="selectedLegacyResource" class="legacy-video-player">
+            <div class="legacy-video-title">
+              <strong>{{ selectedLegacyResource.title }}</strong>
+              <button type="button" aria-label="关闭视频" title="关闭视频" @click="selectedLegacyResource = null">×</button>
+            </div>
+            <video :src="selectedLegacyResource.url" controls autoplay preload="metadata"></video>
+          </div>
         </section>
       </template>
       <!-- 课程卡片 -->
@@ -170,6 +201,16 @@ const state = reactive({
   items: [] as ExpItem[], total: 0
 })
 
+type LegacyResourceItem = { title: string; url: string }
+const legacyResourceItems = ref<LegacyResourceItem[]>([])
+const legacyResourceLoading = ref(false)
+const legacyResourceError = ref('')
+const selectedLegacyResource = ref<LegacyResourceItem | null>(null)
+const LEGACY_RESOURCE_SCRIPTS: Record<string, string> = {
+  'legacy-video': 'https://www.keming365.com/js/jxsp.js',
+  'legacy-scene': 'https://www.keming365.com/js/dxsp.js'
+}
+
 let lastClassifyId: string | number = ''
 let currentCurriculumName = ref('')
 let currentCurriculumId: string | number = ''
@@ -195,6 +236,14 @@ const totalPages = computed(() => Math.ceil(state.total / PAGE_SIZE))
 
 const specialVrCurriculumNames = ['画法几何与机械制图', '液压与气压传动', '工程机械', '工程训练']
 const isDrawingCurriculum = computed(() => currentCurriculumName.value.includes('画法几何与机械制图'))
+const isHydraulicCurriculum = computed(() => currentCurriculumName.value.includes('液压与气压传动'))
+const isLegacyResourceTab = computed(() => (
+  state.resourceMode === 'vr'
+  && state.viewMode === 'experiments'
+  && isHydraulicCurriculum.value
+  && (state.expType === 'legacy-video' || state.expType === 'legacy-scene')
+))
+const legacyResourceTitle = computed(() => state.expType === 'legacy-video' ? '教学视频' : '典型实景资料')
 const isSpecialVrCurriculum = computed(() => {
   if (state.viewMode !== 'experiments' || !state.curriculumId) return false
   const name = currentCurriculumName.value || ''
@@ -210,6 +259,7 @@ const knowledgeGraphUrl = computed(() => {
 const showPagination = computed(() => {
   if (totalPages.value <= 1) return false
   if (state.resourceMode === 'ai' || state.resourceMode === 'knowledge') return false
+  if (isLegacyResourceTab.value) return false
   if (state.viewMode === 'experiments' && state.expType === '3' && isDrawingCurriculum.value) return false
   return true
 })
@@ -283,12 +333,37 @@ function switchExpType(type: string) {
   if (state.expType === type && state.resourceMode === 'vr') return
   state.expType = type
   state.page = 1
+  selectedLegacyResource.value = null
+  if (type === 'legacy-video' || type === 'legacy-scene') {
+    void loadLegacyResources(type)
+    return
+  }
   if (state.resourceMode === 'vr' && state.viewMode === 'experiments') {
     isEmpty.value = false
     loadExperiments()
     return
   }
   loadContent()
+}
+
+async function loadLegacyResources(type: 'legacy-video' | 'legacy-scene') {
+  const scriptUrl = LEGACY_RESOURCE_SCRIPTS[type]
+  legacyResourceLoading.value = true
+  legacyResourceError.value = ''
+  legacyResourceItems.value = []
+  try {
+    const response = await fetch(scriptUrl)
+    if (!response.ok) throw new Error(`资源清单请求失败（${response.status}）`)
+    const source = await response.text()
+    const matches = source.matchAll(/videoUrl\s*:\s*'([^']+)'\s*,\s*imgUrl\s*:\s*'[^']*'\s*,\s*title\s*:\s*'([^']+)'/g)
+    const items = Array.from(matches, match => ({ title: match[2], url: match[1] }))
+    if (!items.length) throw new Error('未读取到资源清单')
+    legacyResourceItems.value = items
+  } catch (error: any) {
+    legacyResourceError.value = error?.message || '资源清单加载失败，请稍后重试'
+  } finally {
+    legacyResourceLoading.value = false
+  }
 }
 
 // === 统一加载 ===
@@ -558,6 +633,28 @@ onMounted(async () => {
 .knowledge-panel { background: #fff; border-radius: 8px; padding: 20px; height: 720px; box-sizing: border-box; overflow: hidden; }
 .knowledge-title { font-size: 18px; font-weight: 700; color: #333; margin-bottom: 15px; }
 .knowledge-frame { width: 100%; height: calc(100% - 35px); border: 0; display: block; }
+.legacy-resource-panel { grid-column: 1 / -1; width: 100%; }
+.legacy-resource-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px;
+  h2 { margin: 0; font-size: 18px; color: #1f2937; }
+  span { color: #7a889b; font-size: 13px; }
+}
+.legacy-resource-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.legacy-resource-card {
+  min-height: 62px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; text-align: left;
+  border: 1px solid #dce6f3; border-radius: 6px; background: #fff; color: #26364a; cursor: pointer;
+  font: inherit; transition: border-color .2s, box-shadow .2s, transform .2s;
+  &:hover { border-color: #1677ff; box-shadow: 0 3px 10px rgba(22,119,255,.12); transform: translateY(-1px); }
+}
+.legacy-resource-icon { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; background: #eaf3ff; color: #1677ff; font-size: 12px; }
+.legacy-resource-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.legacy-resource-error { color: #bf3d3d; font-size: 14px; }
+.legacy-video-player { position: sticky; bottom: 14px; margin-top: 20px; padding: 12px; border: 1px solid #dce6f3; border-radius: 6px; background: #fff; box-shadow: 0 8px 24px rgba(30,58,95,.15);
+  video { display: block; width: 100%; max-height: min(54vh, 520px); background: #111; }
+}
+.legacy-video-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 0 0 10px; color: #1f2937; font-size: 14px;
+  button { width: 28px; height: 28px; border: 0; border-radius: 4px; background: #f1f5f9; color: #526476; font-size: 22px; line-height: 1; cursor: pointer; }
+  button:hover { background: #e2e8f0; }
+}
 .teaching-model-list { grid-column: 1 / -1; display: grid; gap: 6px; width: 100%; }
 .teaching-model-item {
   box-sizing: border-box;
@@ -643,6 +740,7 @@ onMounted(async () => {
 @media (max-width: 768px) {
   .page-wrap { padding: 16px; }
   .course-grid { grid-template-columns: 1fr; }
+  .legacy-resource-grid { grid-template-columns: 1fr; }
   .curriculum-exp-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .curriculum-name { font-size: 16px; }
 }
