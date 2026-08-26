@@ -12,3 +12,4 @@ pywin32; platform_system == "Windows"
 celery[redis]
 gunicorn
 uvicorn[standard]
+openpyxl>=3.1,<4
