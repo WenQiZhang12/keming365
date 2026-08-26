@@ -45,9 +45,27 @@ def _decimal(value, default='0'):
         return Decimal(str(value if value not in (None, '') else default))
     except (InvalidOperation, TypeError, ValueError):
         return Decimal(default)
--
 
-    
+
+def _authorize_callback(data, purpose, user_id, curriculum_id, experiment_id):
+    """Validate the session signature attached to the callback URL."""
+    callback_ts = _first(data, 'callbackTs')
+    callback_sig = _first(data, 'callbackSig')
+    try:
+        timestamp = int(callback_ts)
+    except (TypeError, ValueError):
+        return False
+    if abs(int(time.time()) - timestamp) > settings.YQ_CALLBACK_MAX_AGE:
+        return False
+    message = '|'.join((purpose, user_id, curriculum_id, experiment_id, callback_ts))
+    expected = hmac.new(
+        settings.YQ_CALLBACK_SECRET.encode('utf-8'),
+        message.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+    return bool(callback_sig) and hmac.compare_digest(callback_sig, expected)
+
+
 @api_view(['GET', 'POST'])
 @permission_classes([AllowAny])
 def yq_score_callback(request):
@@ -137,7 +155,6 @@ def yq_usage_callback(request):
             usetime=use_time,
             experimentType=school_id,
             flag=1,
-            
             createTime=timestamp,
             updateTime=timestamp,
         )
